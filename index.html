@@ -1220,6 +1220,11 @@ STD007,7,ด.ญ.,นิษฐา มีสุข,ป.3/1,1100100100007
 STD008,8,ด.ช.,กิตติ ใจบริสุทธิ์,ป.4/1,1100100100008</code>
       </div>
 
+      <div class="mb-3">
+        <label class="text-xs font-medium text-ios-gray">เลือกไฟล์ CSV</label>
+        <input type="file" id="studentCsvFile" accept=".csv,text/csv" class="ios-input" onchange="loadStudentCSVFile(event)">
+        <p class="text-xs text-ios-gray mt-1">หรือวางข้อความ CSV ด้านล่างก็ได้</p>
+      </div>
       <textarea id="csvInput" class="ios-input h-32 resize-none mb-3" placeholder="STD006,6,ด.ช.,สมศักดิ์ รักดี,ป.3/1,1100100100006"></textarea>
 
       <div class="flex flex-col gap-2">
@@ -1232,6 +1237,24 @@ STD008,8,ด.ช.,กิตติ ใจบริสุทธิ์,ป.4/1,1100
     </div>
   `;
   document.body.appendChild(modal);
+}
+
+function loadStudentCSVFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text = e.target.result || '';
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length && /รหัสนักเรียน/.test(lines[0])) {
+      lines.shift();
+    }
+    document.getElementById('csvInput').value = lines.join('\n');
+    showToast(`โหลดไฟล์แล้ว ${lines.length} แถว ตรวจสอบแล้วกดนำเข้า`, 'info');
+  };
+  reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
+  reader.readAsText(file, 'UTF-8');
 }
 
 async function importCSV() {
