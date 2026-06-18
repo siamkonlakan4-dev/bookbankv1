@@ -14,9 +14,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js"></script>
+
+
+
+ 
   <script>
     tailwind.config = {
       theme: {
@@ -300,6 +301,7 @@ const dataHandler = {
         }
       });
     }
+   if (!currentUser) return;
     if (currentPage === 'dashboard') renderDashboard();
     if (currentPage === 'transaction') renderTransaction();
     if (currentPage === 'accounts') renderAccounts();
@@ -1270,7 +1272,7 @@ function generateCards() {
     <div class="bg-white rounded-xl overflow-hidden shadow-lg border border-ios-separator" style="width:100%;max-width:250px;height:140px;display:flex;flex-direction:column;margin:0 auto;">
       <!-- Card Header - 25% height -->
       <div class="bg-blue-600 text-white px-3 py-1.5 flex items-center gap-1.5" style="height:25%;flex-shrink:0;">
-        <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-5 h-5 rounded-full object-cover" loading="lazy" onerror="this.style.background='#1E40AF';">
+        <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
         <div>
           <p class="font-bold leading-none" style="font-size:11px;">บัตรนักเรียน</p>
           <p class="opacity-90 leading-none" style="font-size:9px;">ระบบฝาก-ถอน</p>
