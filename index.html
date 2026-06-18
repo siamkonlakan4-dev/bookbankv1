@@ -1368,7 +1368,10 @@ function renderManage() {
             </tbody>
           </table>
         </div>
-        <button onclick="showAddTeacher()" class="ios-btn mt-3 px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button onclick="showAddTeacher()" class="ios-btn px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
+          <button onclick="showImportTeacherCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้าครู CSV</button>
+        </div>
       </div>
 
       <div class="ios-card p-4">
@@ -1457,7 +1460,94 @@ async function saveNewTeacher() {
     showToast('บันทึกไม่สำเร็จ ตรวจสอบ Console', 'error');
   }
 }
-  
+
+function showImportTeacherCSV() {
+  const modal = document.createElement('div');
+  modal.id = 'teacherCsvModal';
+  modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
+      <h3 class="font-semibold text-lg mb-3">นำเข้ารายชื่อครู CSV</h3>
+      <p class="text-xs text-ios-gray mb-3">รูปแบบ: Username, รหัสผ่าน, ชื่อ-สกุล, ชั้น</p>
+
+      <div class="bg-ios-lightgray p-3 rounded-lg mb-3">
+        <p class="text-xs font-medium text-ios-gray mb-2">📋 ตัวอย่าง:</p>
+        <code class="text-xs text-gray-700 block whitespace-pre-wrap">teacher3,1234,ครูสมศรี ใจงาม,ป.3/1
+teacher4,1234,ครูมานพ ตั้งใจ,ป.4/1
+teacher5,1234,ครูวิภา สอนดี,ป.5/1</code>
+      </div>
+
+      <textarea id="teacherCsvInput" class="ios-input h-32 resize-none mb-3" placeholder="teacher3,1234,ครูสมศรี ใจงาม,ป.3/1"></textarea>
+
+      <div class="flex flex-col gap-2">
+        <button onclick="downloadTeacherCSVTemplate()" class="ios-btn w-full py-2 bg-ios-orange text-white text-sm">📥 ดาวน์โหลดเทมเพลต</button>
+        <div class="flex gap-2">
+          <button onclick="document.getElementById('teacherCsvModal').remove()" class="ios-btn flex-1 py-2 border border-ios-separator text-sm">ยกเลิก</button>
+          <button onclick="importTeacherCSV()" class="ios-btn flex-1 py-2 bg-ios-blue text-white text-sm">นำเข้า</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function importTeacherCSV() {
+  const csv = document.getElementById('teacherCsvInput').value.trim();
+  if (!csv) { showToast('กรุณากรอกข้อมูล', 'error'); return; }
+
+  const btn = document.querySelector('#teacherCsvModal button:last-child');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังนำเข้า...';
+
+  const lines = csv.split('\n');
+  let count = 0;
+  let skipped = 0;
+  const existing = getAllUsers();
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 4) { skipped++; continue; }
+
+    const [username, password, name, cls] = parts;
+    if (!username || !password || !name || !cls) { skipped++; continue; }
+    if (existing[username]) { skipped++; continue; }
+
+    const key = 'u_' + username.replace(/[.#$\[\]\/]/g, '_');
+    const result = await database.ref('users/' + key).set({
+      username, password, name, class: cls, role: 'teacher'
+    }).then(() => ({ isOk: true })).catch((e) => { console.error('นำเข้าครู error:', e); return { isOk: false }; });
+
+    if (result.isOk) { count++; existing[username] = true; }
+    else skipped++;
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+
+  document.getElementById('teacherCsvModal').remove();
+  showToast(`นำเข้าครู ${count} คน${skipped ? ' ข้าม ' + skipped : ''}`, count ? 'success' : 'error');
+}
+
+function downloadTeacherCSVTemplate() {
+  const template = `Username,รหัสผ่าน,ชื่อ-สกุล,ชั้น
+teacher3,1234,ครูสมศรี ใจงาม,ป.3/1
+teacher4,1234,ครูมานพ ตั้งใจ,ป.4/1
+teacher5,1234,ครูวิภา สอนดี,ป.5/1`;
+
+  const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'template_teachers.csv');
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('ดาวน์โหลดเทมเพลตครู CSV สำเร็จ', 'success');
+}
+   
 function showEditTeacher(backendId) {
   const u = teacherUsers.find(t => t.__backendId === backendId);
   if (!u) return;
