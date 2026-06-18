@@ -138,7 +138,7 @@ window.dataSdk = {
     await authReady;
     database.ref('students').on('value', (snap) => {
       const arr = [];
-      snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+      snap.forEach((c) => { arr.push({ ...c.val(), __backendId: c.key }); });
       this._students = arr;
       this._emit();
     }, (err) => {
@@ -147,7 +147,7 @@ window.dataSdk = {
     });
     database.ref('transactions').on('value', (snap) => {
       const arr = [];
-      snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+      snap.forEach((c) => { arr.push({ ...c.val(), __backendId: c.key }); });
       this._transactions = arr;
       this._emit();
     }, (err) => {
