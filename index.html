@@ -1,13 +1,16 @@
 <!doctype html>
 <html lang="th" class="h-full">
- <head><script src="/_sdk/telemetry_sdk.js"></script>
+ <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ระบบฝาก-ถอนเงินนักเรียน</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
-  <script src="/_sdk/element_sdk.js"></script>
-  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+
+  
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -116,7 +119,72 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+// พยายาม sign-in แบบ anonymous — จำเป็นเมื่อใช้ rules แบบ "auth != null"
+// ถ้าใช้ rules แบบเปิด (ขั้นทดสอบ) บรรทัดนี้ล้มเหลวก็ไม่กระทบการทำงาน
+const authReady = firebase.auth().signInAnonymously()
+  .then(() => true)
+  .catch((e) => { console.warn('Anonymous auth ไม่สำเร็จ:', e.message); return false; });
 
+// ===== SHIM: แทน data_sdk.js เดิม ด้วย Firebase Realtime Database =====
+window.dataSdk = {
+  _handler: null,
+  _students: [],
+  _transactions: [],
+  _emit() {
+    if (this._handler && this._handler.onDataChanged) {
+      this._handler.onDataChanged([...this._students, ...this._transactions]);
+    }
+  },
+  async init(handler) {
+    this._handler = handler;
+    await authReady;
+    database.ref('students').on('value', (snap) => {
+      const arr = [];
+      snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+      this._students = arr;
+      this._emit();
+    });
+    database.ref('transactions').on('value', (snap) => {
+      const arr = [];
+      snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+      this._transactions = arr;
+      this._emit();
+    });
+    return { isOk: true };
+  },
+  async create(record) {
+    try {
+      const path = record.type === 'transaction' ? 'transactions' : 'students';
+      const ref = await database.ref(path).push(record);
+      return { isOk: true, id: ref.key };
+    } catch (e) {
+      console.error('dataSdk.create error:', e);
+      return { isOk: false, error: e };
+    }
+  }
+};
+
+// ===== SHIM: แทน element_sdk.js เดิม (เก็บการตั้งค่าระบบไว้ใน Firebase) =====
+window.elementSdk = {
+  config: {},
+  _onChange: null,
+  init(opts) {
+    this.config = { ...(opts.defaultConfig || {}) };
+    this._onChange = opts.onConfigChange || null;
+    authReady.then(() => {
+      database.ref('config').on('value', (snap) => {
+        const val = snap.val() || {};
+        this.config = { ...(opts.defaultConfig || {}), ...val };
+        if (this._onChange) this._onChange(this.config);
+      });
+    });
+  },
+  setConfig(partial) {
+    this.config = { ...this.config, ...partial };
+    database.ref('config').update(partial).catch((e) => console.error('setConfig error:', e));
+  }
+};
+   
 // ===== STATE =====
 let currentUser = null;
 let allRecords = [];
