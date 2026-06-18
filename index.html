@@ -353,7 +353,8 @@ function renderNav() {
       { id: 'accounts', icon: 'users', label: 'บัญชีนักเรียน' },
       { id: 'manage', icon: 'settings', label: 'จัดการผู้ใช้' },
       { id: 'ranking', icon: 'trophy', label: 'Ranking' },
-      { id: 'cards', icon: 'credit-card', label: 'พิมพ์บัตร' }
+      { id: 'cards', icon: 'credit-card', label: 'พิมพ์บัตร' },
+      { id: 'passbook', icon: 'book-open', label: 'สมุดบัญชี' }
     ];
   } else if (currentUser.role === 'teacher') {
     items = [
@@ -361,7 +362,8 @@ function renderNav() {
       { id: 'transaction', icon: 'banknote', label: 'ฝาก-ถอน' },
       { id: 'accounts', icon: 'users', label: 'บัญชีนักเรียน' },
       { id: 'ranking', icon: 'trophy', label: 'Ranking' },
-      { id: 'cards', icon: 'credit-card', label: 'พิมพ์บัตร' }
+      { id: 'cards', icon: 'credit-card', label: 'พิมพ์บัตร' },
+      { id: 'passbook', icon: 'book-open', label: 'สมุดบัญชี' }
     ];
   } else {
     items = [
@@ -391,6 +393,7 @@ function navigateTo(page) {
     case 'manage': renderManage(); break;
     case 'ranking': renderRanking(); break;
     case 'cards': renderCards(); break;
+    case 'passbook': renderPassbook(); break;
   }
 }
 
@@ -479,7 +482,7 @@ function renderDashboard() {
       ${filterHTML}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div class="ios-card p-4 text-center">
-          <p class="text-xs text-ios-gray">ยอดเงินรวม</p>
+          <p class="text-xs text-ios-gray">ยอดเงินรวm</p>
           <p class="text-2xl font-bold text-ios-blue">฿${totalBalance.toLocaleString()}</p>
           <p class="text-xs text-ios-gray">${relevantStudents.length} บัญชี</p>
         </div>
@@ -1050,14 +1053,14 @@ async function saveEditStudent(studentId) {
   }
 
   if (student.__backendId) {
-    const result = await window.dataSdk.create ? await database.ref('students/' + student.__backendId).update({
+    const result = await database.ref('students/' + student.__backendId).update({
       student_id: newId,
       student_number: newNumber,
       student_prefix: newPrefix,
       student_name: newName,
       student_class: finalClass,
       student_id_card: newIdCard
-    }).then(() => ({ isOk: true })).catch(() => ({ isOk: false })) : { isOk: false };
+    }).then(() => ({ isOk: true })).catch(() => ({ isOk: false }));
 
     if (!result.isOk) { showToast('บันทึกไม่สำเร็จ', 'error'); return; }
     document.getElementById('editStudentModal').remove();
@@ -1426,6 +1429,124 @@ function generateCards() {
       });
     });
   }, 200);
+}
+
+// ===== PASSBOOK (สมุดบัญชี) =====
+function renderPassbook() {
+  const content = document.getElementById('mainContent');
+  const relevant = currentUser.role === 'admin'
+    ? sampleStudents
+    : sampleStudents.filter(s => s.class === currentUser.class);
+  const classes = [...new Set(relevant.map(s => s.class))].sort();
+
+  content.innerHTML = `
+    <div class="fade-in max-w-3xl mx-auto space-y-4">
+      <div class="ios-card p-4 no-print">
+        <h2 class="font-semibold text-lg mb-3">📒 พิมพ์สมุดบัญชีนักเรียน</h2>
+        <div class="flex flex-wrap gap-2 items-center">
+          ${currentUser.role === 'admin' ? `
+            <select id="pbClassSelect" class="ios-input w-auto" onchange="onPassbookClassChange()">
+              <option value="">-- เลือกชั้น --</option>
+              ${classes.map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>
+          ` : ''}
+          <select id="pbStudentSelect" class="ios-input w-auto" onchange="generatePassbook(this.value)">
+            <option value="">-- เลือกนักเรียน --</option>
+            ${currentUser.role === 'teacher' ? relevant.map(s => `<option value="${s.id}">${s.prefix}${s.name} (${s.id})</option>`).join('') : ''}
+          </select>
+          <button onclick="window.print()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">พิมพ์ / Export PDF</button>
+        </div>
+      </div>
+      <div id="passbookContainer"></div>
+    </div>
+  `;
+}
+
+function onPassbookClassChange() {
+  const cls = document.getElementById('pbClassSelect').value;
+  const studentSelect = document.getElementById('pbStudentSelect');
+  const inClass = sampleStudents.filter(s => s.class === cls);
+  studentSelect.innerHTML = '<option value="">-- เลือกนักเรียน --</option>' +
+    inClass.map(s => `<option value="${s.id}">${s.prefix}${s.name} (${s.id})</option>`).join('');
+  document.getElementById('passbookContainer').innerHTML = '';
+}
+
+function generatePassbook(studentId) {
+  const container = document.getElementById('passbookContainer');
+  if (!studentId) { container.innerHTML = ''; return; }
+
+  const student = sampleStudents.find(s => s.id === studentId);
+  if (!student) { container.innerHTML = ''; return; }
+
+  const txns = [...sampleTransactions, ...transactions]
+    .filter(t => t.studentId === studentId)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const totalDeposit = txns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
+  const totalWithdraw = txns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
+  const config = window.elementSdk.config;
+  const schoolName = config.school_name || defaultConfig.school_name;
+  const year = config.academic_year || defaultConfig.academic_year;
+
+  container.innerHTML = `
+    <div class="ios-card p-6" style="background:#fff;">
+      <div class="flex items-center gap-3 border-b-2 border-ios-blue pb-3 mb-4">
+        <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-12 h-12 rounded-full object-cover" onerror="this.style.background='#007AFF';">
+        <div class="flex-1">
+          <h2 class="font-bold text-lg">${schoolName}</h2>
+          <p class="text-sm text-ios-gray">สมุดบัญชีเงินฝากนักเรียน • ปีการศึกษา ${year}</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+        <p><span class="font-semibold">ชื่อ-สกุล:</span> ${student.prefix}${student.name}</p>
+        <p><span class="font-semibold">รหัสนักเรียน:</span> ${student.id}</p>
+        <p><span class="font-semibold">ชั้น:</span> ${student.class}</p>
+        <p><span class="font-semibold">เลขที่:</span> ${student.number}</p>
+      </div>
+
+      <table class="w-full text-sm border border-ios-separator" style="border-collapse:collapse;">
+        <thead>
+          <tr class="bg-ios-lightgray">
+            <th class="p-2 border border-ios-separator text-center">ครั้งที่</th>
+            <th class="p-2 border border-ios-separator text-left">วันที่</th>
+            <th class="p-2 border border-ios-separator text-right">ฝาก</th>
+            <th class="p-2 border border-ios-separator text-right">ถอน</th>
+            <th class="p-2 border border-ios-separator text-right">คงเหลือ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${txns.length === 0 ? `
+            <tr><td colspan="5" class="p-4 text-center text-ios-gray border border-ios-separator">ยังไม่มีรายการ</td></tr>
+          ` : txns.map((t, i) => `
+            <tr>
+              <td class="p-2 border border-ios-separator text-center">${i + 1}</td>
+              <td class="p-2 border border-ios-separator">${new Date(t.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
+              <td class="p-2 border border-ios-separator text-right text-ios-green">${t.type === 'deposit' ? t.amount.toLocaleString() : '-'}</td>
+              <td class="p-2 border border-ios-separator text-right text-ios-red">${t.type === 'withdraw' ? t.amount.toLocaleString() : '-'}</td>
+              <td class="p-2 border border-ios-separator text-right font-semibold">${(t.balance ?? 0).toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot>
+          <tr class="bg-ios-lightgray font-semibold">
+            <td class="p-2 border border-ios-separator text-center" colspan="2">รวม</td>
+            <td class="p-2 border border-ios-separator text-right text-ios-green">${totalDeposit.toLocaleString()}</td>
+            <td class="p-2 border border-ios-separator text-right text-ios-red">${totalWithdraw.toLocaleString()}</td>
+            <td class="p-2 border border-ios-separator text-right text-ios-blue">${student.balance.toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <div class="flex justify-between items-end mt-8 text-sm">
+        <p class="text-ios-gray">พิมพ์เมื่อ ${new Date().toLocaleDateString('th-TH')}</p>
+        <div class="text-center">
+          <div style="height:40px;"></div>
+          <p class="border-t border-gray-400 pt-1 px-6">ลายเซ็นผู้รับรอง</p>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 // ===== INIT =====
