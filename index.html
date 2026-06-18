@@ -125,8 +125,8 @@ window.dataSdk = {
   _students: [],
   _transactions: [],
   _emit() {
-    if (this._handler && this._handler.onDataChanged) {
-      this._handler.onDataChanged([...this._students, ...this._transactions]);
+    if (currentPage === 'passbook' && pbCurrentStudentId) {
+      generatePassbook(pbCurrentStudentId);
     }
   },
   async init(handler) {
@@ -1482,6 +1482,7 @@ function renderCardQRCodes(list, attempt) {
 }
 
 // ===== PASSBOOK (สมุดบัญชี) =====
+let pbCurrentStudentId = null;
 function renderPassbook() {
   const content = document.getElementById('mainContent');
   const relevant = currentUser.role === 'admin'
@@ -1518,12 +1519,15 @@ function onPassbookClassChange() {
   const inClass = sampleStudents.filter(s => s.class === cls);
   studentSelect.innerHTML = '<option value="">-- เลือกนักเรียน --</option>' +
     inClass.map(s => `<option value="${s.id}">${s.prefix}${s.name} (${s.id})</option>`).join('');
+  pbCurrentStudentId = null;
   document.getElementById('passbookContainer').innerHTML = '';
 }
 
 function generatePassbook(studentId) {
   const container = document.getElementById('passbookContainer');
   if (!container) return;
+
+  pbCurrentStudentId = studentId || null;
   if (!studentId) { container.innerHTML = ''; return; }
 
   const student = sampleStudents.find(s => s.id === studentId);
@@ -1534,8 +1538,17 @@ function generatePassbook(studentId) {
     .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+  // คำนวณยอดคงเหลือสะสมใหม่จากลำดับรายการจริงทุกครั้ง
+  let running = 0;
+  const rows = txns.map(t => {
+    running += (t.type === 'deposit' ? t.amount : -t.amount);
+    return { ...t, running };
+  });
+
   const totalDeposit = txns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
   const totalWithdraw = txns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
+  const finalBalance = rows.length ? rows[rows.length - 1].running : 0;
+
   const config = window.elementSdk.config;
   const schoolName = config.school_name || defaultConfig.school_name;
   const year = config.academic_year || defaultConfig.academic_year;
@@ -1568,15 +1581,15 @@ function generatePassbook(studentId) {
           </tr>
         </thead>
         <tbody>
-          ${txns.length === 0 ? `
+          ${rows.length === 0 ? `
             <tr><td colspan="5" class="p-4 text-center text-ios-gray border border-ios-separator">ยังไม่มีรายการ</td></tr>
-          ` : txns.map((t, i) => `
+          ` : rows.map((t, i) => `
             <tr>
               <td class="p-2 border border-ios-separator text-center">${i + 1}</td>
               <td class="p-2 border border-ios-separator">${new Date(t.date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
               <td class="p-2 border border-ios-separator text-right text-ios-green">${t.type === 'deposit' ? t.amount.toLocaleString() : '-'}</td>
               <td class="p-2 border border-ios-separator text-right text-ios-red">${t.type === 'withdraw' ? t.amount.toLocaleString() : '-'}</td>
-              <td class="p-2 border border-ios-separator text-right font-semibold">${(t.balance ?? 0).toLocaleString()}</td>
+              <td class="p-2 border border-ios-separator text-right font-semibold">${t.running.toLocaleString()}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -1585,7 +1598,7 @@ function generatePassbook(studentId) {
             <td class="p-2 border border-ios-separator text-center" colspan="2">รวม</td>
             <td class="p-2 border border-ios-separator text-right text-ios-green">${totalDeposit.toLocaleString()}</td>
             <td class="p-2 border border-ios-separator text-right text-ios-red">${totalWithdraw.toLocaleString()}</td>
-            <td class="p-2 border border-ios-separator text-right text-ios-blue">${student.balance.toLocaleString()}</td>
+            <td class="p-2 border border-ios-separator text-right text-ios-blue">${finalBalance.toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>
