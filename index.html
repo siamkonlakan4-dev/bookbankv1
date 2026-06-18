@@ -3,7 +3,7 @@
  <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ระบบฝาก-ถอนเงินนักเรียน</title>
+  <title>Siam4 Smart Saving</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
@@ -61,20 +61,37 @@
  </head>
  <body class="h-full bg-ios-lightgray font-kanit">
   <div id="app" class="h-full w-full flex flex-col overflow-auto">
-   <div id="loginScreen" class="h-full flex flex-col items-center justify-center p-4">
-    <div class="ios-card p-8 w-full max-w-sm text-center fade-in flex-1 flex items-center justify-center">
-     <div>
-      <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้โรงเรียน" class="w-20 h-20 mx-auto mb-4 object-cover" loading="lazy" onerror="this.style.background='#007AFF';this.alt='โลโก้';">
-      <h1 class="text-xl font-semibold text-gray-800 mb-1">ระบบฝาก-ถอนเงินนักเรียน</h1>
-      <p class="text-sm text-ios-gray mb-6" id="loginYearText">ปีการศึกษา 2569</p>
-      <div class="space-y-3">
-       <input type="text" id="loginUser" class="ios-input" placeholder="ชื่อผู้ใช้"> <input type="password" id="loginPass" class="ios-input" placeholder="รหัสผ่าน"> <button onclick="handleLogin()" class="ios-btn w-full py-3 bg-ios-blue text-white font-semibold">เข้าสู่ระบบ</button>
+      <div id="loginScreen" class="h-full flex flex-col items-center justify-center p-4" style="background:linear-gradient(160deg,#E8F1FF 0%,#F2F2F7 45%,#EAF7EF 100%);">
+    <div class="w-full max-w-sm fade-in flex-1 flex items-center justify-center">
+     <div class="w-full">
+      <div class="text-center mb-6">
+       <div class="w-28 h-28 mx-auto mb-4 rounded-3xl bg-white flex items-center justify-center shadow-lg" style="box-shadow:0 10px 30px rgba(0,122,255,0.18);">
+        <img src="https://img2.pic.in.th/Gemini_Generated_Image_883jvr883jvr883j-removebg-preview.png" alt="โลโก้โรงเรียน" class="w-24 h-24 object-contain" onerror="this.style.display='none';">
+       </div>
+       <h1 class="text-2xl font-semibold text-gray-800 mb-1">Siam4 Smart Saving</h1>
+       <p class="text-sm text-ios-gray" id="loginYearText">ปีการศึกษา 2569</p>
       </div>
-      <p id="loginError" class="text-ios-red text-sm mt-3 hidden">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</p>
+      <div class="ios-card p-6 text-center" style="backdrop-filter:blur(10px);background:rgba(255,255,255,0.92);box-shadow:0 8px 30px rgba(0,0,0,0.08);">
+       <div class="space-y-3">
+        <div class="relative">
+         <i data-lucide="user" style="width:18px;height:18px;color:#8E8E93;position:absolute;left:14px;top:50%;transform:translateY(-50%);"></i>
+         <input type="text" id="loginUser" class="ios-input" style="padding-left:42px;" placeholder="ชื่อผู้ใช้">
+        </div>
+        <div class="relative">
+         <i data-lucide="lock" style="width:18px;height:18px;color:#8E8E93;position:absolute;left:14px;top:50%;transform:translateY(-50%);"></i>
+         <input type="password" id="loginPass" class="ios-input" style="padding-left:42px;" placeholder="รหัสผ่าน">
+        </div>
+        <button onclick="handleLogin()" class="ios-btn w-full py-3 bg-ios-blue text-white font-semibold flex items-center justify-center gap-2">
+         <i data-lucide="log-in" style="width:18px;height:18px;"></i>
+         เข้าสู่ระบบ
+        </button>
+       </div>
+       <p id="loginError" class="text-ios-red text-sm mt-3 hidden">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</p>
+      </div>
      </div>
     </div>
-    <footer class="bg-white border-t border-ios-separator py-3 text-center text-xs text-ios-gray w-full">
-     © ระบบฝาก-ถอนเงินนักเรียน Kru Channarong Mongkol
+    <footer class="py-3 text-center text-xs text-ios-gray w-full">
+     © Siam4 Smart Saving 2569 Kru Channarong Mongkol
     </footer>
    </div>
    <div id="mainApp" class="h-full flex flex-col hidden">
@@ -82,7 +99,7 @@
      <div class="flex items-center gap-3">
       <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
       <div>
-       <h1 class="text-sm font-semibold text-gray-800" id="headerSchoolName">ระบบฝาก-ถอนเงินนักเรียน</h1>
+       <h1 class="text-sm font-semibold text-gray-800" id="headerSchoolName">Siam4 Smart Saving</h1>
        <p class="text-xs text-ios-gray" id="headerYear">ปีการศึกษา 2569</p>
       </div>
      </div>
@@ -95,7 +112,7 @@
     <main class="flex-1 overflow-auto p-4" id="mainContent">
     </main>
     <footer class="bg-white border-t border-ios-separator py-3 text-center text-xs text-ios-gray no-print">
-     © ระบบฝาก-ถอนเงินนักเรียน Kru Channarong Mongkol
+     © Siam4 Smart Saving Kru Channarong Mongkol
     </footer>
    </div>
   </div>
@@ -223,7 +240,7 @@ const defaultUsers = {
 let currentPage = 'dashboard';
 
 const defaultConfig = {
-  school_name: 'ระบบฝาก-ถอนเงินนักเรียน',
+  school_name: 'Siam4 Smart Saving',
   academic_year: '2569',
   background_color: '#F2F2F7',
   surface_color: '#FFFFFF',
