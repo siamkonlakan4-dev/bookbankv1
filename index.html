@@ -125,8 +125,8 @@ window.dataSdk = {
   _students: [],
   _transactions: [],
   _emit() {
-    if (currentPage === 'passbook' && pbCurrentStudentId) {
-      generatePassbook(pbCurrentStudentId);
+    if (this._handler && this._handler.onDataChanged) {
+      this._handler.onDataChanged([...this._students, ...this._transactions]);
     }
   },
   async init(handler) {
@@ -197,6 +197,10 @@ let teachers = [];
 let transactions = [];
 let sampleStudents = [];
 let sampleTransactions = [];
+let teacherUsers = [];
+let usersLoaded = false;
+
+const SESSION_KEY = 'savings_app_session';
 
 const defaultUsers = {
   admin: { password: '25422542', role: 'admin', name: 'ผู้ดูแลระบบ', class: 'all' },
@@ -328,9 +332,8 @@ const dataHandler = {
     }
     if (currentPage === 'accounts') renderAccounts();
     if (currentPage === 'ranking') renderRanking();
-    if (currentPage === 'passbook') {
-      const sel = document.getElementById('pbStudentSelect');
-      if (sel && sel.value) generatePassbook(sel.value);
+    if (currentPage === 'passbook' && pbCurrentStudentId) {
+      generatePassbook(pbCurrentStudentId);
     }
   }
 };
@@ -340,18 +343,73 @@ const dataHandler = {
   if (!result.isOk) console.error('Data SDK init failed');
 })();
 
+// ===== USERS (Firebase) =====
+authReady.then(() => {
+  database.ref('users').on('value', (snap) => {
+    const arr = [];
+    snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+    teacherUsers = arr;
+    usersLoaded = true;
+    if (currentUser && currentPage === 'manage') renderManage();
+    // ลองกู้สถานะล็อกอินหลังข้อมูลผู้ใช้พร้อม
+    if (!currentUser) restoreSession();
+  });
+});
+
+function getAllUsers() {
+  const merged = { ...defaultUsers };
+  teacherUsers.forEach(u => {
+    if (!u.username) return;
+    merged[u.username] = {
+      password: u.password,
+      role: u.role || 'teacher',
+      name: u.name,
+      class: u.class,
+      __backendId: u.__backendId
+    };
+  });
+  return merged;
+}
+
+// ===== SESSION =====
+function saveSession(username) {
+  try { localStorage.setItem(SESSION_KEY, username); } catch (e) {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+}
+
+function enterApp(username, userData) {
+  currentUser = { username, ...userData };
+  document.getElementById('loginScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('currentUserDisplay').textContent = currentUser.name + ' (' + getRoleName(currentUser.role) + ')';
+  renderNav();
+  navigateTo('dashboard');
+}
+
+function restoreSession() {
+  if (currentUser) return;
+  let saved = null;
+  try { saved = localStorage.getItem(SESSION_KEY); } catch (e) {}
+  if (!saved) return;
+  const allUsers = getAllUsers();
+  if (allUsers[saved]) {
+    enterApp(saved, allUsers[saved]);
+  }
+}
+
 // ===== AUTH =====
 function handleLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
 
-  if (defaultUsers[user] && defaultUsers[user].password === pass) {
-    currentUser = { username: user, ...defaultUsers[user] };
-    document.getElementById('loginScreen').classList.add('hidden');
-    document.getElementById('mainApp').classList.remove('hidden');
-    document.getElementById('currentUserDisplay').textContent = currentUser.name + ' (' + getRoleName(currentUser.role) + ')';
-    renderNav();
-    navigateTo('dashboard');
+  const allUsers = getAllUsers();
+  if (allUsers[user] && allUsers[user].password === pass) {
+    saveSession(user);
+    enterApp(user, allUsers[user]);
+    document.getElementById('loginError').classList.add('hidden');
   } else {
     document.getElementById('loginError').classList.remove('hidden');
   }
@@ -359,6 +417,7 @@ function handleLogin() {
 
 function handleLogout() {
   if (typeof stopScanner === 'function') stopScanner();
+  clearSession();
   currentUser = null;
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
@@ -1244,18 +1303,33 @@ function renderManage() {
 
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">ครูประจำชั้น</h3>
-        <table class="w-full text-sm">
-          <thead class="bg-ios-lightgray"><tr><th class="p-2 text-left">Username</th><th class="p-2 text-left">ชื่อ</th><th class="p-2 text-left">ชั้น</th><th class="p-2"></th></tr></thead>
-          <tbody>
-            ${Object.entries(defaultUsers).filter(([k, v]) => v.role === 'teacher').map(([k, v]) => `
-              <tr class="border-t border-ios-separator">
-                <td class="p-2">${k}</td><td class="p-2">${v.name}</td><td class="p-2">${v.class}</td>
-                <td class="p-2"><button onclick="editUser('${k}')" class="text-ios-blue text-xs">แก้ไข</button></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <button onclick="addUserForm('teacher')" class="ios-btn mt-3 px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-ios-lightgray"><tr><th class="p-2 text-left">Username</th><th class="p-2 text-left">ชื่อ</th><th class="p-2 text-left">ชั้น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
+            <tbody>
+              ${Object.entries(defaultUsers).filter(([k, v]) => v.role === 'teacher').map(([k, v]) => `
+                <tr class="border-t border-ios-separator">
+                  <td class="p-2">${k} <span class="text-xs text-ios-gray">(ระบบ)</span></td>
+                  <td class="p-2">${v.name}</td>
+                  <td class="p-2">${v.class}</td>
+                  <td class="p-2 text-center text-xs text-ios-gray">บัญชีตัวอย่าง</td>
+                </tr>
+              `).join('')}
+              ${teacherUsers.filter(u => (u.role || 'teacher') === 'teacher').map(u => `
+                <tr class="border-t border-ios-separator">
+                  <td class="p-2">${u.username}</td>
+                  <td class="p-2">${u.name || ''}</td>
+                  <td class="p-2">${u.class || ''}</td>
+                  <td class="p-2 text-center whitespace-nowrap">
+                    <button onclick="showEditTeacher('${u.__backendId}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
+                    <button onclick="deleteTeacher('${u.__backendId}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <button onclick="showAddTeacher()" class="ios-btn mt-3 px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
       </div>
 
       <div class="ios-card p-4">
@@ -1266,12 +1340,145 @@ function renderManage() {
   `;
 }
 
-function addUserForm(role) {
-  showToast('ฟีเจอร์เพิ่มผู้ใช้ — ออกแบบเพื่อรองรับ Firebase', 'info');
+function teacherFormFields(isEdit, data) {
+  const classes = [...new Set(sampleStudents.map(s => s.class))].sort();
+  const d = data || {};
+  return `
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs font-medium text-ios-gray">Username (สำหรับล็อกอิน)</label>
+        <input type="text" id="teacherUsername" class="ios-input" value="${d.username || ''}" placeholder="teacher3" ${isEdit ? 'readonly style="background:#F2F2F7;"' : ''}>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ios-gray">รหัสผ่าน</label>
+        <input type="text" id="teacherPassword" class="ios-input" value="${d.password || ''}" placeholder="1234">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ios-gray">ชื่อ-สกุล</label>
+        <input type="text" id="teacherName" class="ios-input" value="${d.name || ''}" placeholder="ครูสมศรี ใจงาม">
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ios-gray">ชั้นที่รับผิดชอบ</label>
+        <input type="text" id="teacherClass" class="ios-input" list="teacherClassList" value="${d.class || ''}" placeholder="ป.3/1">
+        <datalist id="teacherClassList">
+          ${classes.map(c => `<option value="${c}">`).join('')}
+        </datalist>
+      </div>
+    </div>
+  `;
 }
 
-function editUser(username) {
-  showToast('ฟีเจอร์แก้ไขผู้ใช้ — ออกแบบเพื่อรองรับ Firebase', 'info');
+function showAddTeacher() {
+  const modal = document.createElement('div');
+  modal.id = 'teacherModal';
+  modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
+      <h3 class="font-semibold text-lg mb-4">เพิ่มครูประจำชั้น</h3>
+      ${teacherFormFields(false, {})}
+      <div class="flex gap-2 mt-6">
+        <button onclick="document.getElementById('teacherModal').remove()" class="ios-btn flex-1 py-2 border border-ios-separator">ยกเลิก</button>
+        <button onclick="saveNewTeacher()" class="ios-btn flex-1 py-2 bg-ios-blue text-white">บันทึก</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveNewTeacher() {
+  const username = document.getElementById('teacherUsername').value.trim();
+  const password = document.getElementById('teacherPassword').value.trim();
+  const name = document.getElementById('teacherName').value.trim();
+  const cls = document.getElementById('teacherClass').value.trim();
+
+  if (!username || !password || !name || !cls) {
+    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+    return;
+  }
+
+  if (getAllUsers()[username]) {
+    showToast('Username นี้มีอยู่แล้ว', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('#teacherModal button:last-child');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const result = await database.ref('users').push({
+    username, password, name, class: cls, role: 'teacher'
+  }).then(() => ({ isOk: true })).catch(() => ({ isOk: false }));
+
+  btn.disabled = false;
+  btn.textContent = original;
+
+  if (result.isOk) {
+    document.getElementById('teacherModal').remove();
+    showToast('เพิ่มครูสำเร็จ', 'success');
+  } else {
+    showToast('บันทึกไม่สำเร็จ กรุณาลองใหม่', 'error');
+  }
+}
+
+function showEditTeacher(backendId) {
+  const u = teacherUsers.find(t => t.__backendId === backendId);
+  if (!u) return;
+  const modal = document.createElement('div');
+  modal.id = 'teacherModal';
+  modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
+      <h3 class="font-semibold text-lg mb-4">แก้ไขข้อมูลครู</h3>
+      ${teacherFormFields(true, u)}
+      <div class="flex gap-2 mt-6">
+        <button onclick="document.getElementById('teacherModal').remove()" class="ios-btn flex-1 py-2 border border-ios-separator">ยกเลิก</button>
+        <button onclick="saveEditTeacher('${backendId}')" class="ios-btn flex-1 py-2 bg-ios-blue text-white">บันทึก</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+async function saveEditTeacher(backendId) {
+  const u = teacherUsers.find(t => t.__backendId === backendId);
+  if (!u) return;
+  const password = document.getElementById('teacherPassword').value.trim();
+  const name = document.getElementById('teacherName').value.trim();
+  const cls = document.getElementById('teacherClass').value.trim();
+
+  if (!password || !name || !cls) {
+    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
+    return;
+  }
+
+  const btn = document.querySelector('#teacherModal button:last-child');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const result = await database.ref('users/' + backendId).update({
+    password, name, class: cls
+  }).then(() => ({ isOk: true })).catch(() => ({ isOk: false }));
+
+  btn.disabled = false;
+  btn.textContent = original;
+
+  if (result.isOk) {
+    document.getElementById('teacherModal').remove();
+    showToast('บันทึกการเปลี่ยนแปลงสำเร็จ', 'success');
+  } else {
+    showToast('บันทึกไม่สำเร็จ กรุณาลองใหม่', 'error');
+  }
+}
+
+async function deleteTeacher(backendId) {
+  const u = teacherUsers.find(t => t.__backendId === backendId);
+  if (!u) return;
+  if (!confirm(`ยืนยันลบครู ${u.name} (${u.username})?\nการลบไม่สามารถย้อนกลับได้`)) return;
+  const result = await database.ref('users/' + backendId).remove()
+    .then(() => ({ isOk: true })).catch(() => ({ isOk: false }));
+  showToast(result.isOk ? 'ลบครูสำเร็จ' : 'ลบไม่สำเร็จ', result.isOk ? 'success' : 'error');
 }
 
 function showAddClassForm() {
@@ -1619,6 +1826,8 @@ document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
   applyConfig(defaultConfig);
   document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+  // กู้สถานะล็อกอินทันทีสำหรับบัญชีระบบ (admin/teacher1/teacher2/student1)
+  restoreSession();
 });
 </script>
 </body>
