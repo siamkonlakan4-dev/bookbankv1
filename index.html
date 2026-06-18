@@ -11,6 +11,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
@@ -300,9 +301,37 @@ const dataHandler = {
     }
     if (!currentUser) return;
     if (currentPage === 'dashboard') renderDashboard();
-    if (currentPage === 'transaction') renderTransaction();
+    if (currentPage === 'transaction') {
+      // อัปเดตแบบเรียลไทม์โดยไม่ทิ้งนักเรียนที่เลือกไว้
+      if (txnSelectedStudent) {
+        const refreshed = sampleStudents.find(s => s.id === txnSelectedStudent.id);
+        if (refreshed) {
+          txnSelectedStudent = refreshed;
+          const card = document.getElementById('selectedStudentCard');
+          if (card) {
+            card.innerHTML = `
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="font-semibold">${refreshed.prefix}${refreshed.name}</p>
+                  <p class="text-xs text-ios-gray">${refreshed.class} | รหัส: ${refreshed.id}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-ios-gray">ยอดคงเหลือ</p>
+                  <p class="text-lg font-bold text-ios-blue">฿${refreshed.balance.toLocaleString()}</p>
+                </div>
+              </div>`;
+          }
+        }
+      } else {
+        renderTransaction();
+      }
+    }
     if (currentPage === 'accounts') renderAccounts();
     if (currentPage === 'ranking') renderRanking();
+    if (currentPage === 'passbook') {
+      const sel = document.getElementById('pbStudentSelect');
+      if (sel && sel.value) generatePassbook(sel.value);
+    }
   }
 };
 
@@ -416,7 +445,7 @@ function renderDashboard() {
 
   if (currentUser.role === 'student') {
     const student = sampleStudents.find(s => s.id === currentUser.studentId);
-    const myTxns = [...sampleTransactions, ...transactions].filter(t => t.studentId === currentUser.studentId).sort((a,b) => new Date(b.date) - new Date(a.date));
+    const myTxns = sampleTransactions.filter(t => t.studentId === currentUser.studentId).sort((a,b) => new Date(b.date) - new Date(a.date));
     content.innerHTML = `
       <div class="fade-in max-w-lg mx-auto space-y-4">
         <div class="ios-card p-6 text-center">
@@ -452,7 +481,7 @@ function renderDashboard() {
     ? (selectedClass === 'all' ? sampleStudents : sampleStudents.filter(s => s.class === selectedClass))
     : sampleStudents.filter(s => s.class === currentUser.class);
 
-  const allTxns = [...sampleTransactions, ...transactions];
+  const allTxns = sampleTransactions;
   const relevantTxns = relevantStudents.length > 0
     ? allTxns.filter(t => relevantStudents.find(s => s.id === t.studentId))
     : [];
@@ -463,7 +492,7 @@ function renderDashboard() {
   const weekTxns = relevantTxns.filter(t => new Date(t.date) >= weekAgo);
   const weekDeposit = weekTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
   const weekWithdraw = weekTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
-  const recentTxns = relevantTxns.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+  const recentTxns = [...relevantTxns].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
   let filterHTML = '';
   if (currentUser.role === 'admin') {
@@ -482,7 +511,7 @@ function renderDashboard() {
       ${filterHTML}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div class="ios-card p-4 text-center">
-          <p class="text-xs text-ios-gray">ยอดเงินรวm</p>
+          <p class="text-xs text-ios-gray">ยอดเงินรวม</p>
           <p class="text-2xl font-bold text-ios-blue">฿${totalBalance.toLocaleString()}</p>
           <p class="text-xs text-ios-gray">${relevantStudents.length} บัญชี</p>
         </div>
@@ -687,6 +716,7 @@ function setTxnType(type) {
 function updateTxnTypeUI() {
   const dep = document.getElementById('btnDeposit');
   const wth = document.getElementById('btnWithdraw');
+  if (!dep || !wth) return;
   if (txnType === 'deposit') {
     dep.className = 'ios-btn py-3 bg-ios-green text-white font-semibold';
     wth.className = 'ios-btn py-3 bg-white text-ios-red border-2 border-ios-red font-semibold';
@@ -747,7 +777,6 @@ async function saveTransaction() {
   if (result.isOk) {
     txnSelectedStudent.balance = newBalance;
     showToast(`${txnType === 'deposit' ? 'ฝาก' : 'ถอน'} ฿${txnAmount} สำเร็จ`, 'success');
-    sampleTransactions.push({ studentId: txnSelectedStudent.id, type: txnType, amount: txnAmount, date: new Date().toISOString(), by: currentUser.username, balance: newBalance });
     txnAmount = 0;
     document.getElementById('customAmount').value = '';
     updateAmountBtns();
@@ -1411,24 +1440,45 @@ function generateCards() {
     </div>
   `).join('');
 
-  setTimeout(() => {
-    filtered.forEach(s => {
-      const qrContainer = document.getElementById('qr-' + s.id);
-      if (!qrContainer) return;
-      qrContainer.innerHTML = '';
-      if (typeof QRCode === 'undefined') {
-        qrContainer.innerHTML = '<span style="font-size:8px;color:#999;">no lib</span>';
-        return;
-      }
-      const canvas = document.createElement('canvas');
-      qrContainer.appendChild(canvas);
-      QRCode.toCanvas(canvas, s.id, { width: 60, margin: 0 }, (err) => {
-        if (err) {
-          qrContainer.innerHTML = '<span style="font-size:8px;color:#999;">QR error</span>';
-        }
-      });
+  renderCardQRCodes(filtered, 0);
+}
+
+// วาด QR แบบทนทาน: รอไลบรารีโหลด + รองรับทั้ง qrcode (soldair) และ qrcodejs (davidshimjs)
+function renderCardQRCodes(list, attempt) {
+  if (typeof QRCode === 'undefined') {
+    if (attempt < 40) {
+      setTimeout(() => renderCardQRCodes(list, attempt + 1), 100);
+      return;
+    }
+    list.forEach(s => {
+      const el = document.getElementById('qr-' + s.id);
+      if (el) el.innerHTML = '<span style="font-size:8px;color:#999;">โหลด QR ไม่ได้</span>';
     });
-  }, 200);
+    return;
+  }
+
+  list.forEach(s => {
+    const el = document.getElementById('qr-' + s.id);
+    if (!el) return;
+    el.innerHTML = '';
+    try {
+      if (typeof QRCode.toCanvas === 'function') {
+        // qrcode (soldair) API
+        const canvas = document.createElement('canvas');
+        el.appendChild(canvas);
+        QRCode.toCanvas(canvas, s.id, { width: 60, margin: 0 }, (err) => {
+          if (err) el.innerHTML = '<span style="font-size:8px;color:#999;">QR error</span>';
+        });
+      } else {
+        // qrcodejs (davidshimjs) API
+        const opts = { text: s.id, width: 60, height: 60 };
+        if (QRCode.CorrectLevel) opts.correctLevel = QRCode.CorrectLevel.M;
+        new QRCode(el, opts);
+      }
+    } catch (e) {
+      el.innerHTML = '<span style="font-size:8px;color:#999;">QR error</span>';
+    }
+  });
 }
 
 // ===== PASSBOOK (สมุดบัญชี) =====
@@ -1473,13 +1523,15 @@ function onPassbookClassChange() {
 
 function generatePassbook(studentId) {
   const container = document.getElementById('passbookContainer');
+  if (!container) return;
   if (!studentId) { container.innerHTML = ''; return; }
 
   const student = sampleStudents.find(s => s.id === studentId);
   if (!student) { container.innerHTML = ''; return; }
 
-  const txns = [...sampleTransactions, ...transactions]
+  const txns = sampleTransactions
     .filter(t => t.studentId === studentId)
+    .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const totalDeposit = txns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
