@@ -355,10 +355,20 @@ const dataHandler = {
 })();
 
 // ===== USERS + CLASSES (Firebase) =====
-authReady.then(() => {
   database.ref('users').on('value', (snap) => {
     const arr = [];
-    snap.forEach((c) => arr.push({ ...c.val(), __backendId: c.key }));
+    const raw = snap.val();
+    console.log('[users] raw จาก Firebase:', raw);
+    console.log('[users] จำนวน children =', snap.numChildren());
+    snap.forEach((c) => {
+      const v = c.val();
+      if (v && typeof v === 'object' && v.username) {
+        arr.push({ ...v, __backendId: c.key });
+      } else {
+        console.warn('[users] ข้ามเรคคอร์ดที่ไม่มี username — key:', c.key, 'value:', v);
+      }
+    });
+    console.log('[users] อ่านครูเข้าระบบได้', arr.length, 'คน:', arr.map(u => u.username));
     teacherUsers = arr;
     usersLoaded = true;
     if (currentUser && currentPage === 'manage') renderManage();
@@ -1424,6 +1434,32 @@ async function saveNewTeacher() {
     showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
     return;
   }
+
+  if (getAllUsers()[username]) {
+    showToast('Username นี้มีอยู่แล้ว', 'error');
+    return;
+  }
+
+  const key = 'u_' + username.replace(/[.#$\[\]\/]/g, '_');
+  const btn = document.querySelector('#teacherModal button:last-child');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const result = await database.ref('users/' + key).set({
+    username, password, name, class: cls, role: 'teacher'
+  }).then(() => ({ isOk: true })).catch((e) => { console.error('เพิ่มครู error:', e); return { isOk: false }; });
+
+  btn.disabled = false;
+  btn.textContent = original;
+
+  if (result.isOk) {
+    document.getElementById('teacherModal').remove();
+    showToast('เพิ่มครูสำเร็จ', 'success');
+  } else {
+    showToast('บันทึกไม่สำเร็จ ตรวจสอบ Console', 'error');
+  }
+}
 
   if (getAllUsers()[username]) {
     showToast('Username นี้มีอยู่แล้ว', 'error');
