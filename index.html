@@ -9,15 +9,10 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
-
-  
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-
-
-
- 
+  <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -41,8 +36,9 @@
     }
   </script>
   <style>
-   svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; } 
+    svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
     * { font-family: 'Kanit', sans-serif; }
+    body { box-sizing: border-box; }
     .ios-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     .ios-btn { border-radius: 10px; font-weight: 500; transition: all 0.2s; }
     .ios-btn:active { transform: scale(0.97); opacity: 0.8; }
@@ -61,14 +57,9 @@
     @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
     @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
   </style>
-    <style>
-    body { box-sizing: border-box; }
-    svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
-  </style>
  </head>
  <body class="h-full bg-ios-lightgray font-kanit">
   <div id="app" class="h-full w-full flex flex-col overflow-auto">
-   <!-- Login Screen -->
    <div id="loginScreen" class="h-full flex flex-col items-center justify-center p-4">
     <div class="ios-card p-8 w-full max-w-sm text-center fade-in flex-1 flex items-center justify-center">
      <div>
@@ -84,9 +75,8 @@
     <footer class="bg-white border-t border-ios-separator py-3 text-center text-xs text-ios-gray w-full">
      © ระบบฝาก-ถอนเงินนักเรียน Kru Channarong Mongkol
     </footer>
-   </div><!-- Main App -->
+   </div>
    <div id="mainApp" class="h-full flex flex-col hidden">
-    <!-- Header -->
     <header class="bg-white border-b border-ios-separator px-4 py-3 flex items-center justify-between no-print">
      <div class="flex items-center gap-3">
       <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
@@ -98,11 +88,11 @@
      <div class="flex items-center gap-2">
       <span class="text-xs text-ios-gray" id="currentUserDisplay"></span> <button onclick="handleLogout()" class="ios-btn px-3 py-1.5 text-ios-red text-sm border border-ios-red">ออก</button>
      </div>
-    </header><!-- Navigation -->
+    </header>
     <nav class="bg-white border-b border-ios-separator px-2 py-2 flex gap-1 overflow-x-auto no-print" id="mainNav">
-    </nav><!-- Content -->
+    </nav>
     <main class="flex-1 overflow-auto p-4" id="mainContent">
-    </main><!-- Footer -->
+    </main>
     <footer class="bg-white border-t border-ios-separator py-3 text-center text-xs text-ios-gray no-print">
      © ระบบฝาก-ถอนเงินนักเรียน Kru Channarong Mongkol
     </footer>
@@ -121,16 +111,14 @@ const firebaseConfig = {
   measurementId: "G-2FGC6S3BRC"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
-// พยายาม sign-in แบบ anonymous — จำเป็นเมื่อใช้ rules แบบ "auth != null"
-// ถ้าใช้ rules แบบเปิด (ขั้นทดสอบ) บรรทัดนี้ล้มเหลวก็ไม่กระทบการทำงาน
+
 const authReady = firebase.auth().signInAnonymously()
   .then(() => true)
   .catch((e) => { console.warn('Anonymous auth ไม่สำเร็จ:', e.message); return false; });
 
-// ===== SHIM: แทน data_sdk.js เดิม ด้วย Firebase Realtime Database =====
+// ===== SHIM: Firebase Realtime Database =====
 window.dataSdk = {
   _handler: null,
   _students: [],
@@ -166,10 +154,20 @@ window.dataSdk = {
       console.error('dataSdk.create error:', e);
       return { isOk: false, error: e };
     }
+  },
+  async remove(backendId, type) {
+    try {
+      const path = type === 'transaction' ? 'transactions' : 'students';
+      await database.ref(path + '/' + backendId).remove();
+      return { isOk: true };
+    } catch (e) {
+      console.error('dataSdk.remove error:', e);
+      return { isOk: false, error: e };
+    }
   }
 };
 
-// ===== SHIM: แทน element_sdk.js เดิม (เก็บการตั้งค่าระบบไว้ใน Firebase) =====
+// ===== SHIM: element_sdk =====
 window.elementSdk = {
   config: {},
   _onChange: null,
@@ -189,7 +187,7 @@ window.elementSdk = {
     database.ref('config').update(partial).catch((e) => console.error('setConfig error:', e));
   }
 };
-   
+
 // ===== STATE =====
 let currentUser = null;
 let allRecords = [];
@@ -199,7 +197,6 @@ let transactions = [];
 let sampleStudents = [];
 let sampleTransactions = [];
 
-// Default users
 const defaultUsers = {
   admin: { password: '25422542', role: 'admin', name: 'ผู้ดูแลระบบ', class: 'all' },
   teacher1: { password: '1234', role: 'teacher', name: 'ครูชนณรงค์', class: 'ป.1/1' },
@@ -209,7 +206,6 @@ const defaultUsers = {
 
 let currentPage = 'dashboard';
 
-// ===== CONFIG =====
 const defaultConfig = {
   school_name: 'ระบบฝาก-ถอนเงินนักเรียน',
   academic_year: '2567',
@@ -250,11 +246,10 @@ window.elementSdk.init({
   ])
 });
 
-// ===== DATA SDK =====
+// ===== DATA HANDLER =====
 const dataHandler = {
   onDataChanged(data) {
     allRecords = data;
-    // Separate students and transactions from stored data
     students = data.filter(r => r.type === 'student').map(r => ({
       id: r.student_id,
       number: r.student_number,
@@ -265,7 +260,7 @@ const dataHandler = {
       balance: r.balance || 0,
       __backendId: r.__backendId
     }));
-    
+
     transactions = data.filter(r => r.type === 'transaction').map(r => ({
       studentId: r.student_id,
       type: r.transaction_type,
@@ -275,8 +270,7 @@ const dataHandler = {
       balance: r.balance,
       __backendId: r.__backendId
     }));
-    
-    // Use Firebase data as primary, fallback to sample data
+
     sampleStudents = students.length > 0 ? students : [
       { id: 'STD001', number: '1', prefix: 'ด.ช.', name: 'สมชาย ใจดี', class: 'ป.1/1', idCard: '1100100100001', balance: 150 },
       { id: 'STD002', number: '2', prefix: 'ด.ญ.', name: 'สมหญิง รักเรียน', class: 'ป.1/1', idCard: '1100100100002', balance: 320 },
@@ -284,7 +278,7 @@ const dataHandler = {
       { id: 'STD004', number: '4', prefix: 'ด.ญ.', name: 'มาลี สดใส', class: 'ป.2/1', idCard: '1100100100004', balance: 80 },
       { id: 'STD005', number: '5', prefix: 'ด.ช.', name: 'ประเสริฐ ขยัน', class: 'ม.1/1', idCard: '1100100100005', balance: 1200 },
     ];
-    
+
     sampleTransactions = transactions.length > 0 ? transactions : [
       { studentId: 'STD001', type: 'deposit', amount: 100, date: '2024-12-01T08:30:00', by: 'teacher1', balance: 100 },
       { studentId: 'STD001', type: 'deposit', amount: 50, date: '2024-12-02T08:30:00', by: 'teacher1', balance: 150 },
@@ -294,8 +288,7 @@ const dataHandler = {
       { studentId: 'STD003', type: 'deposit', amount: 500, date: '2024-12-02T08:40:00', by: 'teacher2', balance: 500 },
       { studentId: 'STD005', type: 'deposit', amount: 1200, date: '2024-12-01T08:45:00', by: 'teacher1', balance: 1200 },
     ];
-    
-    // Update balances from transactions
+
     if (transactions.length > 0) {
       sampleStudents.forEach(s => {
         const studentTxns = transactions.filter(t => t.studentId === s.id);
@@ -305,7 +298,7 @@ const dataHandler = {
         }
       });
     }
-   if (!currentUser) return;
+    if (!currentUser) return;
     if (currentPage === 'dashboard') renderDashboard();
     if (currentPage === 'transaction') renderTransaction();
     if (currentPage === 'accounts') renderAccounts();
@@ -322,7 +315,7 @@ const dataHandler = {
 function handleLogin() {
   const user = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
-  
+
   if (defaultUsers[user] && defaultUsers[user].password === pass) {
     currentUser = { username: user, ...defaultUsers[user] };
     document.getElementById('loginScreen').classList.add('hidden');
@@ -336,6 +329,7 @@ function handleLogin() {
 }
 
 function handleLogout() {
+  if (typeof stopScanner === 'function') stopScanner();
   currentUser = null;
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
@@ -375,7 +369,7 @@ function renderNav() {
       { id: 'ranking', icon: 'trophy', label: 'Ranking' }
     ];
   }
-  
+
   nav.innerHTML = items.map(item => `
     <div class="nav-item flex items-center gap-2 whitespace-nowrap text-sm ${currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">
       <i data-lucide="${item.icon}" style="width:16px;height:16px;"></i>
@@ -386,6 +380,7 @@ function renderNav() {
 }
 
 function navigateTo(page) {
+  if (typeof stopScanner === 'function') stopScanner();
   currentPage = page;
   renderNav();
   const content = document.getElementById('mainContent');
@@ -415,7 +410,7 @@ let dashboardClassFilter = 'all';
 
 function renderDashboard() {
   const content = document.getElementById('mainContent');
-  
+
   if (currentUser.role === 'student') {
     const student = sampleStudents.find(s => s.id === currentUser.studentId);
     const myTxns = [...sampleTransactions, ...transactions].filter(t => t.studentId === currentUser.studentId).sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -447,19 +442,18 @@ function renderDashboard() {
     return;
   }
 
-  // Teacher/Admin dashboard
   const classes = currentUser.role === 'admin' ? [...new Set(sampleStudents.map(s => s.class))].sort() : [currentUser.class];
   const selectedClass = currentUser.role === 'admin' ? dashboardClassFilter : currentUser.class;
-  
-  let relevantStudents = currentUser.role === 'admin' 
+
+  let relevantStudents = currentUser.role === 'admin'
     ? (selectedClass === 'all' ? sampleStudents : sampleStudents.filter(s => s.class === selectedClass))
     : sampleStudents.filter(s => s.class === currentUser.class);
-  
+
   const allTxns = [...sampleTransactions, ...transactions];
-  const relevantTxns = relevantStudents.length > 0 
+  const relevantTxns = relevantStudents.length > 0
     ? allTxns.filter(t => relevantStudents.find(s => s.id === t.studentId))
     : [];
-  
+
   const totalBalance = relevantStudents.reduce((sum, s) => sum + s.balance, 0);
   const now = new Date();
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
@@ -498,7 +492,7 @@ function renderDashboard() {
           <p class="text-2xl font-bold text-ios-red">-฿${weekWithdraw.toLocaleString()}</p>
         </div>
       </div>
-      
+
       <div class="ios-card p-4">
         <h3 class="font-semibold text-gray-800 mb-3">รายการล่าสุด</h3>
         ${recentTxns.length === 0 ? '<p class="text-sm text-ios-gray text-center py-4">ยังไม่มีรายการ</p>' : `
@@ -538,13 +532,18 @@ function renderTransaction() {
     <div class="fade-in max-w-lg mx-auto space-y-4">
       <div class="ios-card p-4">
         <h3 class="font-semibold text-gray-800 mb-3"><i data-lucide="scan-line" style="width:18px;height:18px;display:inline;"></i> สแกนหรือค้นหานักเรียน</h3>
+        <div class="flex gap-2 mb-3">
+          <button onclick="startScanner()" class="ios-btn flex-1 py-2 bg-ios-blue text-white text-sm">เปิดกล้องสแกน QR</button>
+          <button onclick="stopScanner()" class="ios-btn flex-1 py-2 bg-ios-red text-white text-sm">ปิดกล้อง</button>
+        </div>
+        <div id="qrReader" class="hidden mb-3 rounded-lg overflow-hidden mx-auto" style="width:100%;max-width:320px;"></div>
         <input type="text" id="studentSearch" class="ios-input" placeholder="พิมพ์รหัสนักเรียน หรือชื่อ..." oninput="searchStudent(this.value)">
         <div id="searchResults" class="mt-2"></div>
       </div>
-      
+
       <div id="txnForm" class="hidden space-y-4">
         <div class="ios-card p-4" id="selectedStudentCard"></div>
-        
+
         <div class="ios-card p-4">
           <h3 class="font-semibold text-gray-800 mb-3">เลือกประเภท</h3>
           <div class="grid grid-cols-2 gap-2">
@@ -552,7 +551,7 @@ function renderTransaction() {
             <button onclick="setTxnType('withdraw')" id="btnWithdraw" class="ios-btn py-3 bg-white text-ios-red border-2 border-ios-red font-semibold">ถอนเงิน</button>
           </div>
         </div>
-        
+
         <div class="ios-card p-4">
           <h3 class="font-semibold text-gray-800 mb-3">จำนวนเงิน</h3>
           <div class="flex flex-wrap gap-2 mb-3">
@@ -565,7 +564,7 @@ function renderTransaction() {
           </div>
           <input type="number" id="customAmount" class="ios-input" placeholder="ระบุจำนวนเงิน..." oninput="txnAmount=parseInt(this.value)||0; updateAmountBtns();">
         </div>
-        
+
         <button onclick="saveTransaction()" id="saveTxnBtn" class="ios-btn w-full py-4 bg-ios-blue text-white font-semibold text-lg">
           บันทึกรายการ
         </button>
@@ -575,15 +574,66 @@ function renderTransaction() {
   lucide.createIcons();
 }
 
+// ===== QR SCANNER =====
+let qrScanner = null;
+
+async function startScanner() {
+  const readerEl = document.getElementById('qrReader');
+  if (!readerEl) return;
+  if (qrScanner) { showToast('กล้องเปิดอยู่แล้ว', 'info'); return; }
+  if (typeof Html5Qrcode === 'undefined') { showToast('ไลบรารีสแกนยังไม่โหลด', 'error'); return; }
+
+  readerEl.classList.remove('hidden');
+  qrScanner = new Html5Qrcode('qrReader');
+  const cfg = { fps: 10, qrbox: 220 };
+
+  try {
+    await qrScanner.start({ facingMode: { exact: 'environment' } }, cfg, onScanSuccess, () => {});
+  } catch (e) {
+    try {
+      await qrScanner.start({ facingMode: 'environment' }, cfg, onScanSuccess, () => {});
+    } catch (e2) {
+      qrScanner = null;
+      readerEl.classList.add('hidden');
+      showToast('เปิดกล้องไม่ได้ ต้องอนุญาตสิทธิ์กล้อง', 'error');
+    }
+  }
+}
+
+async function stopScanner() {
+  const readerEl = document.getElementById('qrReader');
+  if (qrScanner) {
+    try { await qrScanner.stop(); qrScanner.clear(); } catch (e) {}
+    qrScanner = null;
+  }
+  if (readerEl) readerEl.classList.add('hidden');
+}
+
+function onScanSuccess(decodedText) {
+  const id = (decodedText || '').trim();
+  const student = sampleStudents.find(s => s.id === id);
+  stopScanner();
+  if (student) {
+    if (currentUser.role === 'teacher' && student.class !== currentUser.class) {
+      showToast('นักเรียนคนนี้ไม่ได้อยู่ห้องของคุณ', 'error');
+      return;
+    }
+    selectStudent(id);
+    showToast('พบนักเรียน: ' + student.prefix + student.name, 'success');
+  } else {
+    showToast('ไม่พบนักเรียนรหัส ' + id, 'error');
+  }
+}
+
 function searchStudent(query) {
   const results = document.getElementById('searchResults');
   if (!query || query.length < 1) { results.innerHTML = ''; return; }
-  const filtered = sampleStudents.filter(s => 
-    s.id.toLowerCase().includes(query.toLowerCase()) || 
+  const filtered = sampleStudents.filter(s =>
+    s.id.toLowerCase().includes(query.toLowerCase()) ||
     s.name.includes(query) ||
     (s.prefix + s.name).includes(query)
   );
-  
+
   if (currentUser.role === 'teacher') {
     const classFiltered = filtered.filter(s => s.class === currentUser.class);
     results.innerHTML = classFiltered.map(s => `
@@ -619,6 +669,8 @@ function selectStudent(id) {
     </div>
   `;
   document.getElementById('searchResults').innerHTML = '';
+  const searchInput = document.getElementById('studentSearch');
+  if (searchInput) searchInput.value = '';
   txnType = 'deposit';
   txnAmount = 0;
   updateTxnTypeUI();
@@ -706,37 +758,57 @@ async function saveTransaction() {
 function renderAccounts() {
   const content = document.getElementById('mainContent');
   const relevantStudents = currentUser.role === 'admin' ? sampleStudents : sampleStudents.filter(s => s.class === currentUser.class);
-  
+  const classes = [...new Set(sampleStudents.map(s => s.class))].sort();
+  const isAdmin = currentUser.role === 'admin';
+
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-semibold text-lg">บัญชีนักเรียน</h2>
         <div class="flex flex-wrap gap-2">
-          ${currentUser.role === 'admin' ? `
+          ${isAdmin ? `
             <button onclick="showAddStudent()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">+ เพิ่มนักเรียน</button>
             <button onclick="showImportCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้า CSV</button>
           ` : ''}
         </div>
       </div>
+
+      ${isAdmin ? `
+        <div class="ios-card p-3 flex flex-wrap items-center gap-2">
+          <button onclick="deleteSelectedStudents()" class="ios-btn px-4 py-2 bg-ios-red text-white text-sm">ลบที่เลือก</button>
+          <span class="text-ios-gray text-sm mx-1">|</span>
+          <select id="deleteClassSelect" class="ios-input text-sm" style="width:auto;">
+            <option value="">-- เลือกห้องที่จะลบ --</option>
+            ${classes.map(c => `<option value="${c}">${c}</option>`).join('')}
+          </select>
+          <button onclick="deleteClassStudents()" class="ios-btn px-4 py-2 bg-ios-red text-white text-sm">ลบทั้งห้อง</button>
+        </div>
+      ` : ''}
+
       <div class="ios-card overflow-x-auto">
         <table class="w-full text-sm">
           <thead class="bg-ios-lightgray">
             <tr>
+              ${isAdmin ? '<th class="p-3 text-center"><input type="checkbox" id="selectAllStudents" onclick="toggleSelectAll(this)"></th>' : ''}
               <th class="p-3 text-left">รหัส</th>
               <th class="p-3 text-left">ชื่อ-สกุล</th>
               <th class="p-3 text-left hidden sm:table-cell">ชั้น</th>
               <th class="p-3 text-right hidden sm:table-cell">ยอดเงิน</th>
-              ${currentUser.role === 'admin' ? '<th class="p-3 text-center">จัดการ</th>' : ''}
+              ${isAdmin ? '<th class="p-3 text-center">จัดการ</th>' : ''}
             </tr>
           </thead>
           <tbody>
             ${relevantStudents.map(s => `
               <tr class="border-t border-ios-separator hover:bg-ios-lightgray/50">
+                ${isAdmin ? `<td class="p-3 text-center"><input type="checkbox" class="student-check" value="${s.id}"></td>` : ''}
                 <td class="p-3 text-ios-blue font-medium">${s.id}</td>
                 <td class="p-3">${s.prefix}${s.name}</td>
                 <td class="p-3 hidden sm:table-cell">${s.class}</td>
                 <td class="p-3 text-right hidden sm:table-cell font-semibold">฿${s.balance.toLocaleString()}</td>
-                ${currentUser.role === 'admin' ? `<td class="p-3 text-center"><button onclick="showEditStudent('${s.id}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button></td>` : ''}
+                ${isAdmin ? `<td class="p-3 text-center whitespace-nowrap">
+                  <button onclick="showEditStudent('${s.id}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
+                  <button onclick="deleteOneStudent('${s.id}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
+                </td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -744,6 +816,45 @@ function renderAccounts() {
       </div>
     </div>
   `;
+}
+
+function toggleSelectAll(master) {
+  document.querySelectorAll('.student-check').forEach(cb => cb.checked = master.checked);
+}
+
+async function removeStudentById(id) {
+  const student = sampleStudents.find(s => s.id === id);
+  if (!student || !student.__backendId) return false;
+  const result = await window.dataSdk.remove(student.__backendId, 'student');
+  return result.isOk;
+}
+
+async function deleteOneStudent(id) {
+  const student = sampleStudents.find(s => s.id === id);
+  if (!student) return;
+  if (!confirm(`ยืนยันลบ ${student.prefix}${student.name} (${id})?\nการลบไม่สามารถย้อนกลับได้`)) return;
+  const ok = await removeStudentById(id);
+  showToast(ok ? 'ลบนักเรียนสำเร็จ' : 'ลบไม่สำเร็จ (ข้อมูลตัวอย่างลบไม่ได้)', ok ? 'success' : 'error');
+}
+
+async function deleteSelectedStudents() {
+  const ids = [...document.querySelectorAll('.student-check:checked')].map(cb => cb.value);
+  if (ids.length === 0) { showToast('ยังไม่ได้เลือกนักเรียน', 'error'); return; }
+  if (!confirm(`ยืนยันลบนักเรียนที่เลือก ${ids.length} คน?\nการลบไม่สามารถย้อนกลับได้`)) return;
+  let count = 0;
+  for (const id of ids) { if (await removeStudentById(id)) count++; }
+  showToast(`ลบสำเร็จ ${count} คน`, 'success');
+}
+
+async function deleteClassStudents() {
+  const cls = document.getElementById('deleteClassSelect').value;
+  if (!cls) { showToast('กรุณาเลือกห้องที่จะลบ', 'error'); return; }
+  const inClass = sampleStudents.filter(s => s.class === cls);
+  if (inClass.length === 0) { showToast('ห้องนี้ไม่มีนักเรียน', 'error'); return; }
+  if (!confirm(`ยืนยันลบนักเรียนทั้งห้อง ${cls} จำนวน ${inClass.length} คน?\nการลบไม่สามารถย้อนกลับได้`)) return;
+  let count = 0;
+  for (const s of inClass) { if (await removeStudentById(s.id)) count++; }
+  showToast(`ลบห้อง ${cls} สำเร็จ ${count} คน`, 'success');
 }
 
 function showAddStudent() {
@@ -798,7 +909,7 @@ function showAddStudent() {
     </div>
   `;
   document.body.appendChild(modal);
-  
+
   document.getElementById('newStudentClass').addEventListener('change', (e) => {
     document.getElementById('newClassNameDiv').classList.toggle('hidden', e.target.value !== 'new');
   });
@@ -830,7 +941,6 @@ async function saveNewStudent() {
   btn.disabled = true;
   btn.textContent = 'กำลังบันทึก...';
 
-  // Save to Firebase via Data SDK
   const result = await window.dataSdk.create({
     type: 'student',
     student_id: id,
@@ -851,10 +961,8 @@ async function saveNewStudent() {
   btn.textContent = originalText;
 
   if (result.isOk) {
-    sampleStudents.push({ id, number, prefix, name, class: finalClass, idCard, balance: 0 });
     document.getElementById('studentModal').remove();
     showToast('เพิ่มนักเรียนสำเร็จ', 'success');
-    renderAccounts();
   } else {
     showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
   }
@@ -863,7 +971,7 @@ async function saveNewStudent() {
 function showEditStudent(studentId) {
   const student = sampleStudents.find(s => s.id === studentId);
   const classes = [...new Set(sampleStudents.map(s => s.class))].sort();
-  
+
   const modal = document.createElement('div');
   modal.id = 'editStudentModal';
   modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
@@ -913,13 +1021,13 @@ function showEditStudent(studentId) {
     </div>
   `;
   document.body.appendChild(modal);
-  
+
   document.getElementById('editStudentClass').addEventListener('change', (e) => {
     document.getElementById('editClassNameDiv').classList.toggle('hidden', e.target.value !== 'new');
   });
 }
 
-function saveEditStudent(studentId) {
+async function saveEditStudent(studentId) {
   const student = sampleStudents.find(s => s.id === studentId);
   const newId = document.getElementById('editStudentId').value.trim();
   const newNumber = document.getElementById('editStudentNumber').value.trim();
@@ -941,16 +1049,30 @@ function saveEditStudent(studentId) {
     return;
   }
 
-  student.id = newId;
-  student.number = newNumber;
-  student.prefix = newPrefix;
-  student.name = newName;
-  student.class = finalClass;
-  student.idCard = newIdCard;
+  if (student.__backendId) {
+    const result = await window.dataSdk.create ? await database.ref('students/' + student.__backendId).update({
+      student_id: newId,
+      student_number: newNumber,
+      student_prefix: newPrefix,
+      student_name: newName,
+      student_class: finalClass,
+      student_id_card: newIdCard
+    }).then(() => ({ isOk: true })).catch(() => ({ isOk: false })) : { isOk: false };
 
-  document.getElementById('editStudentModal').remove();
-  showToast('บันทึกการเปลี่ยนแปลงสำเร็จ', 'success');
-  renderAccounts();
+    if (!result.isOk) { showToast('บันทึกไม่สำเร็จ', 'error'); return; }
+    document.getElementById('editStudentModal').remove();
+    showToast('บันทึกการเปลี่ยนแปลงสำเร็จ', 'success');
+  } else {
+    student.id = newId;
+    student.number = newNumber;
+    student.prefix = newPrefix;
+    student.name = newName;
+    student.class = finalClass;
+    student.idCard = newIdCard;
+    document.getElementById('editStudentModal').remove();
+    showToast('บันทึก (ข้อมูลตัวอย่าง) สำเร็จ', 'success');
+    renderAccounts();
+  }
 }
 
 function showImportCSV() {
@@ -961,16 +1083,16 @@ function showImportCSV() {
     <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
       <h3 class="font-semibold text-lg mb-3">นำเข้ารายชื่อ CSV</h3>
       <p class="text-xs text-ios-gray mb-3">รูปแบบ: รหัสนักเรียน, เลขที่, คำนำหน้า, ชื่อ-สกุล, ชั้น, เลขบัตรประชาชน</p>
-      
+
       <div class="bg-ios-lightgray p-3 rounded-lg mb-3">
         <p class="text-xs font-medium text-ios-gray mb-2">📋 ตัวอย่าง:</p>
         <code class="text-xs text-gray-700 block whitespace-pre-wrap">STD006,6,ด.ช.,สมศักดิ์ รักดี,ป.3/1,1100100100006
 STD007,7,ด.ญ.,นิษฐา มีสุข,ป.3/1,1100100100007
 STD008,8,ด.ช.,กิตติ ใจบริสุทธิ์,ป.4/1,1100100100008</code>
       </div>
-      
+
       <textarea id="csvInput" class="ios-input h-32 resize-none mb-3" placeholder="STD006,6,ด.ช.,สมศักดิ์ รักดี,ป.3/1,1100100100006"></textarea>
-      
+
       <div class="flex flex-col gap-2">
         <button onclick="downloadCSVTemplate()" class="ios-btn w-full py-2 bg-ios-orange text-white text-sm">📥 ดาวน์โหลดเทมเพลต</button>
         <div class="flex gap-2">
@@ -986,15 +1108,15 @@ STD008,8,ด.ช.,กิตติ ใจบริสุทธิ์,ป.4/1,1100
 async function importCSV() {
   const csv = document.getElementById('csvInput').value.trim();
   if (!csv) { showToast('กรุณากรอกข้อมูล', 'error'); return; }
-  
+
   const btn = document.querySelector('#csvModal button:last-child');
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'กำลังนำเข้า...';
-  
+
   const lines = csv.split('\n');
   let count = 0;
-  
+
   for (const line of lines) {
     const parts = line.split(',').map(s => s.trim());
     if (parts.length >= 5) {
@@ -1013,22 +1135,15 @@ async function importCSV() {
         recorded_by: currentUser.username,
         note: ''
       });
-      
-      if (result.isOk) {
-        sampleStudents.push({
-          id: parts[0], number: parts[1], prefix: parts[2], name: parts[3], class: parts[4], idCard: parts[5] || '', balance: 0
-        });
-        count++;
-      }
+      if (result.isOk) count++;
     }
   }
-  
+
   btn.disabled = false;
   btn.textContent = originalText;
-  
+
   document.getElementById('csvModal').remove();
   showToast(`นำเข้า ${count} รายการสำเร็จ`, 'success');
-  renderAccounts();
 }
 
 function downloadCSVTemplate() {
@@ -1056,11 +1171,11 @@ function renderManage() {
   const content = document.getElementById('mainContent');
   const classes = [...new Set(sampleStudents.map(s => s.class))].sort();
   const config = window.elementSdk.config;
-  
+
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
       <h2 class="font-semibold text-lg">จัดการผู้ใช้งาน</h2>
-      
+
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">⚙️ ตั้งค่าระบบ</h3>
         <div class="space-y-3">
@@ -1075,7 +1190,7 @@ function renderManage() {
           <button onclick="saveSystemSettings()" class="ios-btn w-full py-2 bg-ios-green text-white text-sm font-medium">บันทึกการตั้งค่า</button>
         </div>
       </div>
-      
+
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">ชั้นเรียน (${classes.length} ชั้น)</h3>
         <div class="space-y-2 mb-3">
@@ -1094,7 +1209,7 @@ function renderManage() {
         </div>
         <button onclick="showAddClassForm()" class="ios-btn w-full py-2 bg-ios-blue text-white text-sm">+ เพิ่มชั้นเรียนใหม่</button>
       </div>
-      
+
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">ครูประจำชั้น</h3>
         <table class="w-full text-sm">
@@ -1110,7 +1225,7 @@ function renderManage() {
         </table>
         <button onclick="addUserForm('teacher')" class="ios-btn mt-3 px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
       </div>
-      
+
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">นักเรียน (${sampleStudents.length} คน)</h3>
         <p class="text-sm text-ios-gray">จัดการนักเรียนได้ที่หน้า "บัญชีนักเรียน"</p>
@@ -1155,18 +1270,18 @@ function showAddClassForm() {
 
 function saveNewClass() {
   const className = document.getElementById('newClassName').value.trim();
-  
+
   if (!className) {
     showToast('กรุณากรอกชื่อชั้นเรียน', 'error');
     return;
   }
-  
+
   const classes = [...new Set(sampleStudents.map(s => s.class))];
   if (classes.includes(className)) {
     showToast('ชั้นเรียนนี้มีอยู่แล้ว', 'error');
     return;
   }
-  
+
   document.getElementById('addClassModal').remove();
   showToast('เพิ่มชั้นเรียน ' + className + ' สำเร็จ', 'success');
   renderManage();
@@ -1178,7 +1293,7 @@ function deleteClass(className) {
     showToast('ไม่สามารถลบชั้นที่มีนักเรียน ' + count + ' คน', 'error');
     return;
   }
-  
+
   showToast('ลบชั้นเรียน ' + className + ' สำเร็จ', 'success');
   renderManage();
 }
@@ -1186,17 +1301,17 @@ function deleteClass(className) {
 function saveSystemSettings() {
   const schoolName = document.getElementById('schoolNameInput').value.trim();
   const academicYear = document.getElementById('academicYearInput').value.trim();
-  
+
   if (!schoolName || !academicYear) {
     showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
     return;
   }
-  
+
   window.elementSdk.setConfig({
     school_name: schoolName,
     academic_year: academicYear
   });
-  
+
   showToast('บันทึกการตั้งค่าสำเร็จ', 'success');
 }
 
@@ -1206,22 +1321,20 @@ function renderRanking() {
   let relevantStudents = sampleStudents;
   let title = '🏆 นักออมเงินดีเด่น';
   let subtitle = 'Ranking ยอดเงินสะสมสูงสุด';
-  
-  // Students see only their class ranking
+
   if (currentUser.role === 'student') {
     relevantStudents = sampleStudents.filter(s => s.class === currentUser.class);
     title = '🏆 ห้องของฉัน';
     subtitle = currentUser.class + ' - ยอดเงินสะสมสูงสุด';
   } else if (currentUser.role === 'teacher') {
-    // Teachers see only their class ranking
     relevantStudents = sampleStudents.filter(s => s.class === currentUser.class);
     title = '🏆 ห้องประจำชั้น';
     subtitle = currentUser.class + ' - ยอดเงินสะสมสูงสุด';
   }
-  
+
   const sorted = [...relevantStudents].sort((a, b) => b.balance - a.balance);
   const medals = ['🥇', '🥈', '🥉'];
-  
+
   content.innerHTML = `
     <div class="fade-in max-w-lg mx-auto space-y-4">
       <div class="ios-card p-4 text-center">
@@ -1248,7 +1361,7 @@ function renderRanking() {
 function renderCards() {
   const content = document.getElementById('mainContent');
   const classes = [...new Set(sampleStudents.map(s => s.class))].sort();
-  
+
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
       <div class="ios-card p-4 no-print">
@@ -1271,10 +1384,9 @@ function generateCards() {
   const cls = document.getElementById('cardClassSelect').value;
   const filtered = cls ? sampleStudents.filter(s => s.class === cls) : sampleStudents;
   const container = document.getElementById('cardsContainer');
-  
+
   container.innerHTML = filtered.map(s => `
     <div class="bg-white rounded-xl overflow-hidden shadow-lg border border-ios-separator" style="width:100%;max-width:250px;height:140px;display:flex;flex-direction:column;margin:0 auto;">
-      <!-- Card Header - 25% height -->
       <div class="bg-blue-600 text-white px-3 py-1.5 flex items-center gap-1.5" style="height:25%;flex-shrink:0;">
         <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
         <div>
@@ -1282,18 +1394,13 @@ function generateCards() {
           <p class="opacity-90 leading-none" style="font-size:9px;">ระบบฝาก-ถอน</p>
         </div>
       </div>
-      
-      <!-- Card Body - 75% height -->
       <div class="flex flex-1" style="height:75%;padding:10px;">
-        <!-- Student Info (Left Side) - 60% width -->
         <div class="flex-1 flex flex-col justify-center pr-2" style="width:60%;">
           <p class="font-bold text-gray-800" style="font-size:13px;line-height:1.2;">${s.prefix}${s.name}</p>
           <p style="font-size:10px;" class="text-gray-700 mt-2"><span class="font-semibold">รหัส:</span> ${s.id}</p>
           <p style="font-size:10px;" class="text-gray-700"><span class="font-semibold">ชั้น:</span> ${s.class}</p>
           <p style="font-size:10px;" class="text-gray-700"><span class="font-semibold">เลขที่:</span> ${s.number}</p>
         </div>
-        
-        <!-- QR Code (Right Side) - 40% width -->
         <div class="flex items-center justify-center" style="width:40%;flex-shrink:0;padding:2px;">
           <div id="qr-${s.id}" style="width:65px;height:65px;background:#fff;border:1px solid #ddd;display:flex;align-items:center;justify-content:center;"></div>
         </div>
@@ -1301,38 +1408,32 @@ function generateCards() {
     </div>
   `).join('');
 
-  // Generate QR codes after DOM update
   setTimeout(() => {
     filtered.forEach(s => {
       const qrContainer = document.getElementById('qr-' + s.id);
-      if (qrContainer) {
-        qrContainer.innerHTML = '';
-        try {
-          if (typeof QRCode !== 'undefined') {
-            QRCode.toCanvas(qrContainer, s.id, { 
-              width: 55, 
-              margin: 0,
-              color: { dark: '#000000', light: '#FFFFFF' }
-            }, (err) => {
-              if (err) console.error('QR error:', err);
-            });
-          }
-        } catch (e) {
-          console.error('QR generation error:', e);
-          qrContainer.innerHTML = '<span style="font-size:8px;color:#999;">QR</span>';
-        }
+      if (!qrContainer) return;
+      qrContainer.innerHTML = '';
+      if (typeof QRCode === 'undefined') {
+        qrContainer.innerHTML = '<span style="font-size:8px;color:#999;">no lib</span>';
+        return;
       }
+      const canvas = document.createElement('canvas');
+      qrContainer.appendChild(canvas);
+      QRCode.toCanvas(canvas, s.id, { width: 60, margin: 0 }, (err) => {
+        if (err) {
+          qrContainer.innerHTML = '<span style="font-size:8px;color:#999;">QR error</span>';
+        }
+      });
     });
-  }, 150);
+  }, 200);
 }
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
   applyConfig(defaultConfig);
-  // Enter key for login
   document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-});  
+});
 </script>
- <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0d72a9853c17335',t:'MTc4MTc1MjkxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
