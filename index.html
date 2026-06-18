@@ -41,6 +41,7 @@
     }
   </script>
   <style>
+   svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; } 
     * { font-family: 'Kanit', sans-serif; }
     .ios-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     .ios-btn { border-radius: 10px; font-weight: 500; transition: all 0.2s; }
@@ -60,7 +61,10 @@
     @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
     @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
   </style>
-  <style>body { box-sizing: border-box; }</style>
+    <style>
+    body { box-sizing: border-box; }
+    svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
+  </style>
  </head>
  <body class="h-full bg-ios-lightgray font-kanit">
   <div id="app" class="h-full w-full flex flex-col overflow-auto">
@@ -85,7 +89,7 @@
     <!-- Header -->
     <header class="bg-white border-b border-ios-separator px-4 py-3 flex items-center justify-between no-print">
      <div class="flex items-center gap-3">
-      <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" loading="lazy" onerror="this.style.background='#007AFF';">
+      <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
       <div>
        <h1 class="text-sm font-semibold text-gray-800" id="headerSchoolName">ระบบฝาก-ถอนเงินนักเรียน</h1>
        <p class="text-xs text-ios-gray" id="headerYear">ปีการศึกษา 2567</p>
@@ -1328,8 +1332,7 @@ document.addEventListener('DOMContentLoaded', () => {
   applyConfig(defaultConfig);
   // Enter key for login
   document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
-});
-svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }   
+});  
 </script>
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a0d72a9853c17335',t:'MTc4MTc1MjkxMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
