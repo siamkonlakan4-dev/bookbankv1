@@ -67,7 +67,6 @@
       margin: 8mm;
     }
 
-    /* บังคับให้ทุก container ที่ตัดเนื้อหา ปล่อยให้ไหลต่อ */
     html, body {
       height: auto !important;
       overflow: visible !important;
@@ -86,7 +85,6 @@
     .no-print { display: none !important; }
     .fade-in { animation: none !important; }
 
-    /* กริดบัตรนักเรียน 3 คอลัมน์ ไหลข้ามหน้าได้ */
     #cardsContainer {
       display: grid !important;
       grid-template-columns: repeat(3, 1fr) !important;
@@ -94,7 +92,6 @@
       max-width: none !important;
       width: 100% !important;
     }
-    /* บัตรแต่ละใบ ห้ามโดนตัดครึ่ง */
     #cardsContainer > div {
       page-break-inside: avoid !important;
       break-inside: avoid !important;
@@ -107,7 +104,6 @@
       border-radius: 8px !important;
     }
 
-    /* สมุดบัญชี ก็ให้ไหลข้ามหน้าได้ ไม่ตัดกลางตาราง */
     #passbookContainer table { page-break-inside: auto; }
     #passbookContainer tr { page-break-inside: avoid; page-break-after: auto; }
     #passbookContainer thead { display: table-header-group; }
@@ -660,6 +656,7 @@ function renderDashboard() {
   const weekTxns = relevantTxns.filter(t => new Date(t.date) >= weekAgo);
   const weekDeposit = weekTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
   const weekWithdraw = weekTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
+
   // กรองเฉพาะรายการของวันนี้
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -675,6 +672,18 @@ function renderDashboard() {
   // สรุปยอดวันนี้
   const todayDeposit = todayTxns.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
   const todayWithdraw = todayTxns.filter(t => t.type === 'withdraw').reduce((s, t) => s + t.amount, 0);
+
+  let filterHTML = '';
+  if (currentUser.role === 'admin') {
+    filterHTML = `
+      <div class="ios-card p-3">
+        <select id="dashboardClassSelect" class="ios-input text-sm" onchange="changeDashboardClass(this.value)">
+          <option value="all">📊 ทั้งโรงเรียน</option>
+          ${classes.map(c => `<option value="${c}" ${selectedClass === c ? 'selected' : ''}>ห้อง ${c}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  }
 
   content.innerHTML = `
     <div class="fade-in space-y-4 max-w-4xl mx-auto">
@@ -1388,7 +1397,7 @@ STD008,8,ด.ช.,กิตติ ใจบริสุทธิ์,ป.4/1,1100
 STD009,9,ด.ญ.,พรชนม พลเมือง,ป.4/1,1100100100009
 STD010,10,ด.ช.,สิรพัฒน์ เรียนดี,ป.4/1,1100100100010`;
 
-  const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   link.setAttribute('href', url);
@@ -1616,7 +1625,7 @@ function loadTeacherCSVFile(event) {
   };
   reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
   reader.readAsText(file, 'UTF-8');
-}   
+}
 
 async function importTeacherCSV() {
   const csv = document.getElementById('teacherCsvInput').value.trim();
@@ -1674,7 +1683,7 @@ teacher5,1234,ครูวิภา สอนดี,ป.5/1`;
   document.body.removeChild(link);
   showToast('ดาวน์โหลดเทมเพลตครู CSV สำเร็จ', 'success');
 }
-   
+
 function showEditTeacher(backendId) {
   const u = teacherUsers.find(t => t.__backendId === backendId);
   if (!u) return;
