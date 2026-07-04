@@ -828,6 +828,42 @@ async function stopScanner() {
   }
   if (readerEl) readerEl.classList.add('hidden');
 }
+// ===== SCAN FEEDBACK (เสียง BEEP + สั่น) =====
+let audioCtx = null;
+
+function scanFeedback(success = true) {
+  // สั่น (มือถือที่รองรับ)
+  try {
+    if (navigator.vibrate) {
+      navigator.vibrate(success ? 120 : [80, 60, 80]);
+    }
+  } catch (e) {}
+
+  // เสียง BEEP ผ่าน Web Audio API
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    // สแกนสำเร็จ = เสียงสูงสั้น, ไม่พบ = เสียงต่ำ
+    osc.type = 'square';
+    osc.frequency.value = success ? 880 : 300;
+
+    const now = audioCtx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.25, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+    osc.start(now);
+    osc.stop(now + 0.16);
+  } catch (e) {}
+}
 
 function onScanSuccess(decodedText) {
   const id = (decodedText || '').trim();
@@ -835,12 +871,15 @@ function onScanSuccess(decodedText) {
   stopScanner();
   if (student) {
     if (currentUser.role === 'teacher' && student.class !== currentUser.class) {
+      scanFeedback(false);
       showToast('นักเรียนคนนี้ไม่ได้อยู่ห้องของคุณ', 'error');
       return;
     }
+    scanFeedback(true);
     selectStudent(id);
     showToast('พบนักเรียน: ' + student.prefix + student.name, 'success');
   } else {
+    scanFeedback(false);
     showToast('ไม่พบนักเรียนรหัส ' + id, 'error');
   }
 }
