@@ -713,7 +713,6 @@ function renderDashboard() {
             <p class="text-xs opacity-90 mt-1">${weekTxns.filter(t => t.type === 'withdraw').length} รายการ</p>
           </div>
         </div>
-      </div>
       <h3 class="font-semibold text-gray-800">รายการวันนี้</h3>
       <p class="text-xs text-ios-gray">${new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • ${recentTxns.length} รายการ</p>
     </div>
