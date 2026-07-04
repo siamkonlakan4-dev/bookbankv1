@@ -37,28 +37,83 @@
       }
     }
   </script>
-  <style>
-    svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
-    * { font-family: 'Kanit', sans-serif; }
-    body { box-sizing: border-box; }
-    .ios-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
-    .ios-btn { border-radius: 10px; font-weight: 500; transition: all 0.2s; }
-    .ios-btn:active { transform: scale(0.97); opacity: 0.8; }
-    .ios-input { border-radius: 10px; border: 1px solid #E5E5EA; padding: 12px 16px; width: 100%; outline: none; transition: border-color 0.2s; }
-    .ios-input:focus { border-color: #007AFF; }
-    .tab-active { color: #007AFF; border-bottom: 2px solid #007AFF; }
-    .fade-in { animation: fadeIn 0.3s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .amount-btn { min-width: 60px; padding: 10px 16px; border-radius: 10px; border: 2px solid #E5E5EA; font-weight: 500; transition: all 0.2s; cursor: pointer; }
-    .amount-btn.selected { border-color: #007AFF; background: #EBF5FF; color: #007AFF; }
-    .nav-item { cursor: pointer; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
-    .nav-item:hover { background: #F2F2F7; }
-    .nav-item.active { background: #007AFF; color: white; }
-    @media print { .no-print { display: none !important; } }
-    .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 12px 24px; border-radius: 12px; color: white; font-weight: 500; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s; }
-    @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
-  </style>
+ <style>
+  svg.lucide { width: 1em; height: 1em; display: inline-block; vertical-align: -0.125em; }
+  * { font-family: 'Kanit', sans-serif; }
+  body { box-sizing: border-box; }
+  .ios-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .ios-btn { border-radius: 10px; font-weight: 500; transition: all 0.2s; }
+  .ios-btn:active { transform: scale(0.97); opacity: 0.8; }
+  .ios-input { border-radius: 10px; border: 1px solid #E5E5EA; padding: 12px 16px; width: 100%; outline: none; transition: border-color 0.2s; }
+  .ios-input:focus { border-color: #007AFF; }
+  .tab-active { color: #007AFF; border-bottom: 2px solid #007AFF; }
+  .fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .amount-btn { min-width: 60px; padding: 10px 16px; border-radius: 10px; border: 2px solid #E5E5EA; font-weight: 500; transition: all 0.2s; cursor: pointer; }
+  .amount-btn.selected { border-color: #007AFF; background: #EBF5FF; color: #007AFF; }
+  .nav-item { cursor: pointer; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
+  .nav-item:hover { background: #F2F2F7; }
+  .nav-item.active { background: #007AFF; color: white; }
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; padding: 12px 24px; border-radius: 12px; color: white; font-weight: 500; animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+  @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+  /* ================================
+     PRINT / PDF EXPORT — A4 Portrait
+     ================================ */
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+
+    /* บังคับให้ทุก container ที่ตัดเนื้อหา ปล่อยให้ไหลต่อ */
+    html, body {
+      height: auto !important;
+      overflow: visible !important;
+      background: #fff !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    #app, #mainApp, #mainContent, main {
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      display: block !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .no-print { display: none !important; }
+    .fade-in { animation: none !important; }
+
+    /* กริดบัตรนักเรียน 3 คอลัมน์ ไหลข้ามหน้าได้ */
+    #cardsContainer {
+      display: grid !important;
+      grid-template-columns: repeat(3, 1fr) !important;
+      gap: 4mm !important;
+      max-width: none !important;
+      width: 100% !important;
+    }
+    /* บัตรแต่ละใบ ห้ามโดนตัดครึ่ง */
+    #cardsContainer > div {
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+      max-width: none !important;
+      width: 100% !important;
+      height: 45mm !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      border: 1px solid #666 !important;
+      border-radius: 8px !important;
+    }
+
+    /* สมุดบัญชี ก็ให้ไหลข้ามหน้าได้ ไม่ตัดกลางตาราง */
+    #passbookContainer table { page-break-inside: auto; }
+    #passbookContainer tr { page-break-inside: avoid; page-break-after: auto; }
+    #passbookContainer thead { display: table-header-group; }
+    #passbookContainer tfoot { display: table-footer-group; }
+  }
+</style>
  </head>
  <body class="h-full bg-ios-lightgray font-kanit">
   <div id="app" class="h-full w-full flex flex-col overflow-auto">
