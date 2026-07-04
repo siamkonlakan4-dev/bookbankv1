@@ -660,7 +660,21 @@ function renderDashboard() {
   const weekTxns = relevantTxns.filter(t => new Date(t.date) >= weekAgo);
   const weekDeposit = weekTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
   const weekWithdraw = weekTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
-  const recentTxns = [...relevantTxns].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+// กรองเฉพาะรายการของวันนี้
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const todayTxns = relevantTxns.filter(t => {
+  const d = new Date(t.date);
+  return d >= todayStart && d <= todayEnd;
+  });
+  const recentTxns = todayTxns.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+// สรุปยอดวันนี้
+const todayDeposit = todayTxns.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+const todayWithdraw = todayTxns.filter(t => t.type === 'withdraw').reduce((s, t) => s + t.amount, 0);= [...relevantTxns].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
   let filterHTML = '';
   if (currentUser.role === 'admin') {
