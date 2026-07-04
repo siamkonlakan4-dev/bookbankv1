@@ -689,23 +689,31 @@ function renderDashboard() {
     <div class="fade-in space-y-4 max-w-4xl mx-auto">
       ${filterHTML}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="ios-card p-4 text-center">
-          <p class="text-xs text-ios-gray">ยอดเงินรวม</p>
-          <p class="text-2xl font-bold text-ios-blue">฿${totalBalance.toLocaleString()}</p>
-          <p class="text-xs text-ios-gray">${relevantStudents.length} บัญชี</p>
+        <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#007AFF 0%,#5856D6 100%);">
+          <i data-lucide="wallet" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
+          <div class="relative">
+            <p class="text-xs opacity-90">ยอดเงินรวม</p>
+            <p class="text-3xl font-bold mt-1">฿${totalBalance.toLocaleString()}</p>
+            <p class="text-xs opacity-90 mt-1">${relevantStudents.length} บัญชี</p>
+          </div>
         </div>
-        <div class="ios-card p-4 text-center">
-          <p class="text-xs text-ios-gray">ยอดฝาก (สัปดาห์นี้)</p>
-          <p class="text-2xl font-bold text-ios-green">+฿${weekDeposit.toLocaleString()}</p>
+        <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#34C759 0%,#30B0C7 100%);">
+          <i data-lucide="trending-up" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
+          <div class="relative">
+            <p class="text-xs opacity-90">ยอดฝาก (สัปดาห์นี้)</p>
+            <p class="text-3xl font-bold mt-1">+฿${weekDeposit.toLocaleString()}</p>
+            <p class="text-xs opacity-90 mt-1">${weekTxns.filter(t => t.type === 'deposit').length} รายการ</p>
+          </div>
         </div>
-        <div class="ios-card p-4 text-center">
-          <p class="text-xs text-ios-gray">ยอดถอน (สัปดาห์นี้)</p>
-          <p class="text-2xl font-bold text-ios-red">-฿${weekWithdraw.toLocaleString()}</p>
+        <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#FF9500 0%,#FF3B30 100%);">
+          <i data-lucide="trending-down" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
+          <div class="relative">
+            <p class="text-xs opacity-90">ยอดถอน (สัปดาห์นี้)</p>
+            <p class="text-3xl font-bold mt-1">-฿${weekWithdraw.toLocaleString()}</p>
+            <p class="text-xs opacity-90 mt-1">${weekTxns.filter(t => t.type === 'withdraw').length} รายการ</p>
+          </div>
         </div>
       </div>
-   <div class="ios-card p-4">
-  <div class="flex items-center justify-between mb-3">
-    <div>
       <h3 class="font-semibold text-gray-800">รายการวันนี้</h3>
       <p class="text-xs text-ios-gray">${new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • ${recentTxns.length} รายการ</p>
     </div>
