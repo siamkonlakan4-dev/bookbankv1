@@ -97,7 +97,7 @@
       break-inside: avoid !important;
       max-width: none !important;
       width: 100% !important;
-      height: 45mm !important;
+      height: 50mm !important;
       margin: 0 !important;
       box-shadow: none !important;
       border: 1px solid #666 !important;
@@ -288,6 +288,7 @@ const defaultUsers = {
 };
 
 let currentPage = 'dashboard';
+let cardHeaderColor = '#2563eb'; // สีหัวบัตรนักเรียน (ปรับได้จากหน้าพิมพ์บัตร)
 
 const defaultConfig = {
   school_name: 'Siam4 Smart Saving',
@@ -1942,11 +1943,15 @@ function renderCards() {
     <div class="fade-in max-w-4xl mx-auto space-y-4">
       <div class="ios-card p-4 no-print">
         <h2 class="font-semibold text-lg mb-3">🪪 พิมพ์บัตรนักเรียน</h2>
-        <div class="flex flex-wrap gap-2 mb-3">
+        <div class="flex flex-wrap gap-2 mb-3 items-center">
           <select id="cardClassSelect" class="ios-input w-auto">
             <option value="">-- เลือกชั้น --</option>
             ${classes.map(c => `<option value="${c}">${c}</option>`).join('')}
           </select>
+          <div class="flex items-center gap-1.5 ios-input w-auto" style="padding:6px 12px;">
+            <label for="cardHeaderColorInput" class="text-sm text-gray-700">สีหัวบัตร:</label>
+            <input type="color" id="cardHeaderColorInput" value="${cardHeaderColor}" onchange="onCardHeaderColorChange()" style="width:32px;height:28px;border:none;padding:0;background:none;cursor:pointer;">
+          </div>
           <button onclick="generateCards()" class="ios-btn px-4 py-2 bg-ios-blue text-white text-sm">สร้างบัตร</button>
           <button onclick="window.print()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">พิมพ์ / Export PDF</button>
         </div>
@@ -1956,29 +1961,36 @@ function renderCards() {
   `;
 }
 
+function onCardHeaderColorChange() {
+  cardHeaderColor = document.getElementById('cardHeaderColorInput').value;
+  document.querySelectorAll('.card-header-bar').forEach(el => { el.style.backgroundColor = cardHeaderColor; });
+}
+
 function generateCards() {
   const cls = document.getElementById('cardClassSelect').value;
   const filtered = cls ? sampleStudents.filter(s => s.class === cls) : sampleStudents;
   const container = document.getElementById('cardsContainer');
 
   container.innerHTML = filtered.map(s => `
-    <div class="bg-white rounded-xl overflow-hidden shadow-lg border border-ios-separator" style="width:100%;max-width:250px;height:140px;display:flex;flex-direction:column;margin:0 auto;">
-      <div class="bg-blue-600 text-white px-3 py-1.5 flex items-center gap-1.5" style="height:25%;flex-shrink:0;">
+    <div class="bg-white rounded-xl overflow-hidden shadow-lg border border-ios-separator" style="width:100%;max-width:250px;height:155px;display:flex;flex-direction:column;margin:0 auto;">
+      <div class="card-header-bar text-white px-3 py-1.5 flex items-center gap-1.5" style="height:22%;flex-shrink:0;background-color:${cardHeaderColor};">
         <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
         <div>
           <p class="font-bold leading-none" style="font-size:11px;">บัตรนักเรียน</p>
           <p class="opacity-90 leading-none" style="font-size:9px;">ระบบฝาก-ถอน</p>
         </div>
       </div>
-      <div class="flex flex-1" style="height:75%;padding:10px;">
-        <div class="flex-1 flex flex-col justify-center pr-2" style="width:60%;">
-          <p class="font-bold text-gray-800" style="font-size:13px;line-height:1.2;">${s.prefix}${s.name}</p>
-          <p style="font-size:10px;" class="text-gray-700 mt-2"><span class="font-semibold">รหัส:</span> ${s.id}</p>
-          <p style="font-size:10px;" class="text-gray-700"><span class="font-semibold">ชั้น:</span> ${s.class}</p>
-          <p style="font-size:10px;" class="text-gray-700"><span class="font-semibold">เลขที่:</span> ${s.number}</p>
-        </div>
-        <div class="flex items-center justify-center" style="width:40%;flex-shrink:0;padding:2px;">
-          <div id="qr-${s.id}" style="width:65px;height:65px;background:#fff;border:1px solid #ddd;display:flex;align-items:center;justify-content:center;"></div>
+      <div class="flex flex-col flex-1" style="height:78%;padding:8px 10px;">
+        <p class="font-bold text-gray-800" style="font-size:13px;line-height:1.25;min-height:16px;">${s.prefix}${s.name}</p>
+        <div class="flex flex-1 items-center mt-1">
+          <div class="flex-1 flex flex-col justify-center gap-0.5 pr-2">
+            <p style="font-size:12px;" class="text-gray-700"><span class="font-semibold">รหัส:</span> ${s.id}</p>
+            <p style="font-size:12px;" class="text-gray-700"><span class="font-semibold">ชั้น:</span> ${s.class}</p>
+            <p style="font-size:12px;" class="text-gray-700"><span class="font-semibold">เลขที่:</span> ${s.number}</p>
+          </div>
+          <div class="flex items-center justify-center" style="width:64px;flex-shrink:0;">
+            <div id="qr-${s.id}" style="width:58px;height:58px;background:#fff;border:1px solid #ddd;display:flex;align-items:center;justify-content:center;"></div>
+          </div>
         </div>
       </div>
     </div>
