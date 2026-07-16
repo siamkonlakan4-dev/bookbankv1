@@ -290,6 +290,20 @@ const defaultUsers = {
 let currentPage = 'dashboard';
 let cardHeaderColor = '#2563eb'; // สีหัวบัตรนักเรียน (ปรับได้จากหน้าพิมพ์บัตร)
 
+// ===== HELPER: วันที่ / สิทธิ์ลบ =====
+// วันที่วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาท้องถิ่น
+function todayStr() {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
+// ตรวจสิทธิ์ลบรายการ: แอดมินลบได้ทุกอัน / ครูลบได้เฉพาะรายการที่ตนบันทึก
+function canDeleteTxn(t) {
+  if (!currentUser) return false;
+  return currentUser.role === 'admin' || t.by === currentUser.username;
+}
+
 const defaultConfig = {
   school_name: 'Siam4 Smart Saving',
   academic_year: '2569',
@@ -373,12 +387,13 @@ const dataHandler = {
       { studentId: 'STD005', type: 'deposit', amount: 1200, date: '2024-12-01T08:45:00', by: 'teacher1', balance: 1200 },
     ];
 
+    // คำนวณยอดคงเหลือจากผลรวมรายการ เพื่อรองรับการบันทึก/ลบย้อนหลัง
     if (transactions.length > 0) {
       sampleStudents.forEach(s => {
         const studentTxns = transactions.filter(t => t.studentId === s.id);
         if (studentTxns.length > 0) {
-          const sorted = studentTxns.sort((a, b) => new Date(b.date) - new Date(a.date));
-          s.balance = sorted[0].balance;
+          s.balance = studentTxns.reduce((sum, t) =>
+            sum + (t.type === 'deposit' ? t.amount : -t.amount), 0);
         }
       });
     }
@@ -604,6 +619,28 @@ function showToast(msg, type = 'success') {
 
 // ===== DASHBOARD =====
 let dashboardClassFilter = 'all';
+let dashboardDateFilter = todayStr();
+
+function changeDashboardDate(v) {
+  dashboardDateFilter = v || todayStr();
+  renderDashboard();
+}
+
+async function deleteTransaction(backendId) {
+  const txn = transactions.find(t => t.__backendId === backendId);
+  if (!txn) { showToast('ไม่พบรายการ', 'error'); return; }
+  if (!canDeleteTxn(txn)) { showToast('คุณไม่มีสิทธิ์ลบรายการนี้', 'error'); return; }
+
+  const student = sampleStudents.find(s => s.id === txn.studentId);
+  const who = student ? student.prefix + student.name : txn.studentId;
+  const typeLabel = txn.type === 'deposit' ? 'ฝาก' : 'ถอน';
+  const dateLabel = new Date(txn.date).toLocaleDateString('th-TH');
+
+  if (!confirm(`ยืนยันลบรายการ ${typeLabel} ฿${txn.amount} ของ ${who}\nวันที่ ${dateLabel}?\nยอดเงินจะถูกคำนวณใหม่ และลบไม่สามารถย้อนกลับได้`)) return;
+
+  const result = await window.dataSdk.remove(backendId, 'transaction');
+  showToast(result.isOk ? 'ลบรายการสำเร็จ' : 'ลบไม่สำเร็จ', result.isOk ? 'success' : 'error');
+}
 
 function renderDashboard() {
   const content = document.getElementById('mainContent');
@@ -658,19 +695,18 @@ function renderDashboard() {
   const weekDeposit = weekTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
   const weekWithdraw = weekTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
 
-  // กรองเฉพาะรายการของวันนี้
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  // กรองรายการตามวันที่ที่เลือก
+  const [fy, fm, fd] = dashboardDateFilter.split('-').map(Number);
+  const dayStart = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+  const dayEnd = new Date(fy, fm - 1, fd, 23, 59, 59, 999);
 
   const todayTxns = relevantTxns.filter(t => {
     const d = new Date(t.date);
-    return d >= todayStart && d <= todayEnd;
+    return d >= dayStart && d <= dayEnd;
   });
   const recentTxns = todayTxns.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // สรุปยอดวันนี้
+  // สรุปยอดของวันที่เลือก
   const todayDeposit = todayTxns.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
   const todayWithdraw = todayTxns.filter(t => t.type === 'withdraw').reduce((s, t) => s + t.amount, 0);
 
@@ -717,28 +753,35 @@ function renderDashboard() {
       </div>
 
       <div class="ios-card p-4">
-        <div class="flex items-center justify-between mb-3">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
-            <h3 class="font-semibold text-gray-800">รายการวันนี้</h3>
-            <p class="text-xs text-ios-gray">${new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • ${recentTxns.length} รายการ</p>
+            <h3 class="font-semibold text-gray-800">รายการฝาก-ถอน</h3>
+            <p class="text-xs text-ios-gray">${new Date(dayStart).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} • ${recentTxns.length} รายการ</p>
           </div>
-          <div class="text-right text-xs">
-            <p class="text-ios-green">ฝาก +฿${todayDeposit.toLocaleString()}</p>
-            <p class="text-ios-red">ถอน -฿${todayWithdraw.toLocaleString()}</p>
+          <div class="flex items-center gap-3">
+            <input type="date" id="dashboardDateInput" value="${dashboardDateFilter}" onchange="changeDashboardDate(this.value)" class="ios-input text-sm" style="width:auto;padding:8px 12px;">
+            <div class="text-right text-xs">
+              <p class="text-ios-green">ฝาก +฿${todayDeposit.toLocaleString()}</p>
+              <p class="text-ios-red">ถอน -฿${todayWithdraw.toLocaleString()}</p>
+            </div>
           </div>
         </div>
-        ${recentTxns.length === 0 ? '<p class="text-sm text-ios-gray text-center py-4">ยังไม่มีรายการวันนี้</p>' : `
+        ${recentTxns.length === 0 ? '<p class="text-sm text-ios-gray text-center py-4">ไม่มีรายการในวันนี้</p>' : `
           <div class="space-y-2 max-h-96 overflow-y-auto">
             ${recentTxns.map(t => {
               const student = sampleStudents.find(s => s.id === t.studentId);
               const time = new Date(t.date).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+              const canDel = canDeleteTxn(t) && t.__backendId;
               return `<div class="flex items-center justify-between py-2 border-b border-ios-separator last:border-0">
-                <div>
-                  <span class="text-sm font-medium">${student?.prefix}${student?.name}</span>
-                  <span class="text-xs text-ios-gray ml-2">${student?.class}</span>
+                <div class="min-w-0">
+                  <span class="text-sm font-medium">${student?.prefix || ''}${student?.name || t.studentId}</span>
+                  <span class="text-xs text-ios-gray ml-2">${student?.class || ''}</span>
                   <span class="text-xs text-ios-gray ml-1">${time} น.</span>
                 </div>
-                <span class="font-semibold text-sm ${t.type === 'deposit' ? 'text-ios-green' : 'text-ios-red'}">${t.type === 'deposit' ? '+' : '-'}฿${t.amount}</span>
+                <div class="flex items-center gap-3 whitespace-nowrap">
+                  <span class="font-semibold text-sm ${t.type === 'deposit' ? 'text-ios-green' : 'text-ios-red'}">${t.type === 'deposit' ? '+' : '-'}฿${t.amount}</span>
+                  ${canDel ? `<button onclick="deleteTransaction('${t.__backendId}')" class="text-ios-red text-xs hover:underline">ลบ</button>` : ''}
+                </div>
               </div>`;
             }).join('')}
           </div>
@@ -776,6 +819,12 @@ function renderTransaction() {
 
       <div id="txnForm" class="hidden space-y-4">
         <div class="ios-card p-4" id="selectedStudentCard"></div>
+
+        <div class="ios-card p-4">
+          <h3 class="font-semibold text-gray-800 mb-3">วันที่ทำรายการ</h3>
+          <input type="date" id="txnDate" class="ios-input" value="${todayStr()}" max="${todayStr()}">
+          <p class="text-xs text-ios-gray mt-2">เลือกย้อนหลังได้ หากไม่เลือกจะใช้วันนี้</p>
+        </div>
 
         <div class="ios-card p-4">
           <h3 class="font-semibold text-gray-800 mb-3">เลือกประเภท</h3>
@@ -995,6 +1044,17 @@ async function saveTransaction() {
 
   const newBalance = txnType === 'deposit' ? txnSelectedStudent.balance + txnAmount : txnSelectedStudent.balance - txnAmount;
 
+  // สร้างวันที่จากช่องที่เลือก (คงเวลาปัจจุบันไว้เพื่อเรียงลำดับภายในวัน)
+  let isoDate;
+  const dateInput = document.getElementById('txnDate');
+  if (dateInput && dateInput.value) {
+    const [y, m, d] = dateInput.value.split('-').map(Number);
+    const now = new Date();
+    isoDate = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+  } else {
+    isoDate = new Date().toISOString();
+  }
+
   const result = await window.dataSdk.create({
     type: 'transaction',
     student_id: txnSelectedStudent.id,
@@ -1006,7 +1066,7 @@ async function saveTransaction() {
     transaction_type: txnType,
     amount: txnAmount,
     balance: newBalance,
-    date: new Date().toISOString(),
+    date: isoDate,
     recorded_by: currentUser.username,
     note: ''
   });
