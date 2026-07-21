@@ -109,19 +109,22 @@
     </footer>
    </div>
    <div id="mainApp" class="h-full flex flex-col hidden">
-    <header class="bg-white border-b border-ios-separator px-4 py-3 flex items-center justify-between no-print">
-     <div class="flex items-center gap-3">
-      <img src="logo bookbank.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
-      <div>
-       <h1 class="text-sm font-semibold text-gray-800" id="headerSchoolName">Siam4 Smart Saving</h1>
-       <p class="text-xs text-ios-gray" id="headerYear">ปีการศึกษา 2569</p>
+    <header class="bg-white border-b border-ios-separator no-print">
+     <div class="max-w-4xl mx-auto w-full px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+       <img src="logo bookbank.png" alt="โลโก้" class="w-8 h-8 rounded-full object-cover" loading="lazy" onerror="this.style.background='#007AFF';">
+       <div>
+        <h1 class="text-sm font-semibold text-gray-800" id="headerSchoolName">Siam4 Smart Saving</h1>
+        <p class="text-xs text-ios-gray" id="headerYear">ปีการศึกษา 2569</p>
+       </div>
+      </div>
+      <div class="flex items-center gap-2">
+       <span class="text-xs text-ios-gray" id="currentUserDisplay"></span> <button onclick="handleLogout()" class="ios-btn px-3 py-1.5 text-ios-red text-sm border border-ios-red">ออก</button>
       </div>
      </div>
-     <div class="flex items-center gap-2">
-      <span class="text-xs text-ios-gray" id="currentUserDisplay"></span> <button onclick="handleLogout()" class="ios-btn px-3 py-1.5 text-ios-red text-sm border border-ios-red">ออก</button>
-     </div>
     </header>
-    <nav class="bg-white border-b border-ios-separator px-2 py-2 flex gap-1 overflow-x-auto no-print" id="mainNav">
+    <nav class="bg-white border-b border-ios-separator no-print">
+     <div class="max-w-4xl mx-auto w-full px-2 py-2 flex gap-1 overflow-x-auto" id="mainNav"></div>
     </nav>
     <main class="flex-1 overflow-auto p-4" id="mainContent">
     </main>
