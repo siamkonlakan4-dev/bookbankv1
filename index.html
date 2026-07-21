@@ -149,13 +149,30 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-const authReady = firebase.auth().signInAnonymously()
-  .then(() => true)
-  .catch((e) => {
-    console.warn('Anonymous auth ไม่สำเร็จ:', e.code, e.message);
-    showToast('เข้าสู่ระบบ Firebase ไม่ได้ ต้องเปิด Anonymous ใน Authentication', 'error');
-    return false;
+const EMAIL_DOMAIN = '@siam4.local';
+let secondaryApp;
+try { secondaryApp = firebase.initializeApp(firebaseConfig, 'secondary'); }
+catch (e) { secondaryApp = firebase.app('secondary'); }
+
+let authInitDone = false;
+const authReady = new Promise((resolve) => {
+  firebase.auth().onAuthStateChanged(async (user) => {
+    if (!user) {
+      try { await firebase.auth().signInAnonymously(); }
+      catch (e) { console.warn('anon auth fail', e.code); resolve(false); }
+      return; // จะ fire ใหม่พร้อม user anonymous
+    }
+    if (!authInitDone) { authInitDone = true; resolve(true); }
+    // คืนสถานะล็อกอินครู/แอดมิน/ผอ ที่ค้างไว้ (persistence ของ Firebase)
+    if (!user.isAnonymous && !currentUser) {
+      try {
+        const snap = await database.ref('users/' + user.uid).get();
+        const profile = snap.val();
+        if (profile) enterApp(profile.username, profile);
+      } catch (e) { console.error('restore profile fail', e); }
+    }
   });
+});
 
 // ===== SHIM: Firebase Realtime Database =====
 window.dataSdk = {
@@ -318,6 +335,14 @@ function canDeleteTxn(t) {
   return currentUser.role === 'admin' || t.by === currentUser.username;
 }
 
+function canEdit() {
+  return currentUser && (currentUser.role === 'admin' || currentUser.role === 'teacher');
+}
+function requireEdit() {
+  if (!canEdit()) { showToast('บัญชีนี้ดูได้อย่างเดียว ไม่สามารถแก้ไขได้', 'error'); return false; }
+  return true;
+}
+
 const defaultConfig = {
   school_name: 'Siam4 Smart Saving',
   academic_year: '2569',
@@ -467,7 +492,6 @@ authReady.then(() => {
     teacherUsers = arr;
     usersLoaded = true;
     if (currentUser && currentPage === 'manage') renderManage();
-    if (!currentUser) restoreSession();
   }, (err) => {
     console.error('อ่านข้อมูล users ไม่ได้:', err.code, err.message);
     showToast('อ่านข้อมูลผู้ใช้ไม่ได้ ตรวจสอบ Firebase Rules', 'error');
@@ -522,41 +546,66 @@ function enterApp(username, userData) {
   navigateTo('dashboard');
 }
 
-function restoreSession() {
-  if (currentUser) return;
-  let saved = null;
-  try { saved = localStorage.getItem(SESSION_KEY); } catch (e) {}
-  if (!saved) return;
-  const allUsers = getAllUsers();
-  if (allUsers[saved]) {
-    enterApp(saved, allUsers[saved]);
-  }
-}
-
 // ===== AUTH =====
-function handleLogin() {
-  const user = document.getElementById('loginUser').value.trim();
+async function handleLogin() {
+  const username = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value.trim();
+  const errEl = document.getElementById('loginError');
+  errEl.classList.add('hidden');
+  if (!username || !pass) {
+    errEl.textContent = 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน';
+    errEl.classList.remove('hidden');
+    return;
+  }
 
-  const allUsers = getAllUsers();
-  if (allUsers[user] && allUsers[user].password === pass) {
-    saveSession(user);
-    enterApp(user, allUsers[user]);
-    document.getElementById('loginError').classList.add('hidden');
-  } else {
-    document.getElementById('loginError').classList.remove('hidden');
+  try {
+    const email = username.toLowerCase() + EMAIL_DOMAIN;
+    const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+    const uid = cred.user.uid;
+    const snap = await database.ref('users/' + uid).get();
+    let profile = snap.val();
+
+    if (!profile) {
+      // บูตแอดมินคนแรกที่สร้างด้วยมือใน Console
+      if (username.toLowerCase() === 'admin') {
+        profile = { username: 'admin', name: 'ผู้ดูแลระบบ', class: 'all', role: 'admin' };
+        await database.ref('users/' + uid).set(profile);
+      } else {
+        await firebase.auth().signOut();
+        await firebase.auth().signInAnonymously().catch(() => {});
+        errEl.textContent = 'บัญชีนี้ยังไม่มีข้อมูลโปรไฟล์ ให้แอดมินเพิ่มก่อน';
+        errEl.classList.remove('hidden');
+        return;
+      }
+    }
+    saveSession(username);
+    enterApp(username, profile);
+    errEl.classList.add('hidden');
+  } catch (e) {
+    console.error('login error', e.code, e.message);
+    errEl.textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+    errEl.classList.remove('hidden');
   }
 }
 
-function handleLogout() {
+async function handleLogout() {
   if (typeof stopScanner === 'function') stopScanner();
   clearSession();
   currentUser = null;
+  try { await firebase.auth().signOut(); } catch (e) {}
+  try { await firebase.auth().signInAnonymously(); } catch (e) {}
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').classList.add('hidden');
+}
+
+// ไม่ใช้ localStorage คืนค่าเองแล้ว Firebase Auth จำ session ให้ (ดู Part A)
+function restoreSession() { /* no-op: จัดการใน onAuthStateChanged */ }
+
+function getRoleName(role) {
+  return { admin: 'แอดมิน', director: 'ผู้อำนวยการ', teacher: 'ครูประจำชั้น', student: 'นักเรียน' }[role] || role;
 }
 
 function getRoleName(role) {
@@ -567,7 +616,7 @@ function getRoleName(role) {
 function renderNav() {
   const nav = document.getElementById('mainNav');
   let items = [];
-  if (currentUser.role === 'admin') {
+  if (currentUser.role === 'admin' || currentUser.role === 'director') {
     items = [
       { id: 'dashboard', icon: 'layout-dashboard', label: 'แดชบอร์ด' },
       { id: 'transaction', icon: 'banknote', label: 'ฝาก-ถอน' },
@@ -639,6 +688,7 @@ function changeDashboardDate(v) {
 }
 
 async function deleteTransaction(backendId) {
+  if (!requireEdit()) return;
   const txn = transactions.find(t => t.__backendId === backendId);
   if (!txn) { showToast('ไม่พบรายการ', 'error'); return; }
   if (!canDeleteTxn(txn)) { showToast('คุณไม่มีสิทธิ์ลบรายการนี้', 'error'); return; }
@@ -1039,6 +1089,7 @@ function updateAmountBtns() {
 }
 
 async function saveTransaction() {
+  if (!requireEdit()) return;
   if (!txnSelectedStudent || txnAmount <= 0) {
     showToast('กรุณาเลือกนักเรียนและจำนวนเงิน', 'error');
     return;
@@ -1212,6 +1263,7 @@ async function removeStudentById(id) {
 }
 
 async function deleteOneStudent(id) {
+  if (!requireEdit()) return;
   const student = sampleStudents.find(s => s.id === id);
   if (!student) return;
   if (!confirm(`ยืนยันลบ ${student.prefix}${student.name} (${id})?\nการลบไม่สามารถย้อนกลับได้`)) return;
@@ -1220,6 +1272,7 @@ async function deleteOneStudent(id) {
 }
 
 async function deleteSelectedStudents() {
+  if (!requireEdit()) return;
   const ids = [...document.querySelectorAll('.student-check:checked')].map(cb => cb.value);
   if (ids.length === 0) { showToast('ยังไม่ได้เลือกนักเรียน', 'error'); return; }
   if (!confirm(`ยืนยันลบนักเรียนที่เลือก ${ids.length} คน?\nการลบไม่สามารถย้อนกลับได้`)) return;
@@ -1229,6 +1282,7 @@ async function deleteSelectedStudents() {
 }
 
 async function deleteClassStudents() {
+  if (!requireEdit()) return;
   const cls = document.getElementById('deleteClassSelect').value;
   if (!cls) { showToast('กรุณาเลือกห้องที่จะลบ', 'error'); return; }
   const inClass = sampleStudents.filter(s => s.class === cls);
@@ -1296,6 +1350,7 @@ function onPromoteSourceChange() {
 }
 
 async function confirmPromotion() {
+  if (!requireEdit()) return;
   const src = document.getElementById('promoteSource').value;
   const target = document.getElementById('promoteTarget').value.trim();
   if (!src) { showToast('เลือกห้องต้นทาง', 'error'); return; }
@@ -1380,6 +1435,7 @@ function showAddStudent() {
 }
 
 async function saveNewStudent() {
+  if (!requireEdit()) return;
   const id = document.getElementById('newStudentId').value.trim();
   const number = document.getElementById('newStudentNumber').value.trim();
   const prefix = document.getElementById('newStudentPrefix').value;
@@ -1492,6 +1548,7 @@ function showEditStudent(studentId) {
 }
 
 async function saveEditStudent(studentId) {
+  if (!requireEdit()) return;
   const student = sampleStudents.find(s => s.id === studentId);
   const newId = document.getElementById('editStudentId').value.trim();
   const newNumber = document.getElementById('editStudentNumber').value.trim();
@@ -1593,6 +1650,7 @@ function loadStudentCSVFile(event) {
 }
 
 async function importCSV() {
+  if (!requireEdit()) return;
   const csv = document.getElementById('csvInput').value.trim();
   if (!csv) { showToast('กรุณากรอกข้อมูล', 'error'); return; }
 
@@ -1729,6 +1787,7 @@ function renderManage() {
         <div class="flex flex-wrap gap-2 mt-3">
           <button onclick="showAddTeacher()" class="ios-btn px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
           <button onclick="showImportTeacherCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้าครู CSV</button>
+          <button onclick="migrateTeachersToAuth()" class="ios-btn px-4 py-2 bg-ios-purple text-white text-sm">🔐 ย้ายครูเดิมเข้า Auth</button>
         </div>
       </div>
 
@@ -1749,20 +1808,27 @@ function teacherFormFields(isEdit, data) {
         <label class="text-xs font-medium text-ios-gray">Username (สำหรับล็อกอิน)</label>
         <input type="text" id="teacherUsername" class="ios-input" value="${d.username || ''}" placeholder="teacher3" ${isEdit ? 'readonly style="background:#F2F2F7;"' : ''}>
       </div>
+      ${isEdit ? '' : `
       <div>
         <label class="text-xs font-medium text-ios-gray">รหัสผ่าน</label>
-        <input type="text" id="teacherPassword" class="ios-input" value="${d.password || ''}" placeholder="1234">
-      </div>
+        <input type="text" id="teacherPassword" class="ios-input" placeholder="1234">
+      </div>`}
       <div>
         <label class="text-xs font-medium text-ios-gray">ชื่อ-สกุล</label>
         <input type="text" id="teacherName" class="ios-input" value="${d.name || ''}" placeholder="ครูสมศรี ใจงาม">
       </div>
       <div>
-        <label class="text-xs font-medium text-ios-gray">ชั้นที่รับผิดชอบ</label>
+        <label class="text-xs font-medium text-ios-gray">บทบาท</label>
+        <select id="teacherRole" class="ios-input">
+          <option value="teacher" ${d.role === 'teacher' || !d.role ? 'selected' : ''}>ครูประจำชั้น</option>
+          <option value="director" ${d.role === 'director' ? 'selected' : ''}>ผู้อำนวยการ (ดูอย่างเดียว)</option>
+          <option value="admin" ${d.role === 'admin' ? 'selected' : ''}>แอดมิน</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-medium text-ios-gray">ชั้นที่รับผิดชอบ (ผอ/แอดมิน ใส่ all)</label>
         <input type="text" id="teacherClass" class="ios-input" list="teacherClassList" value="${d.class || ''}" placeholder="ป.3/1">
-        <datalist id="teacherClassList">
-          ${classes.map(c => `<option value="${c}">`).join('')}
-        </datalist>
+        <datalist id="teacherClassList">${classes.map(c => `<option value="${c}">`).join('')}</datalist>
       </div>
     </div>
   `;
@@ -1786,40 +1852,39 @@ function showAddTeacher() {
 }
 
 async function saveNewTeacher() {
+  if (!requireEdit()) return;
   const username = document.getElementById('teacherUsername').value.trim();
   const password = document.getElementById('teacherPassword').value.trim();
   const name = document.getElementById('teacherName').value.trim();
-  const cls = document.getElementById('teacherClass').value.trim();
+  const role = document.getElementById('teacherRole').value;
+  const cls = document.getElementById('teacherClass').value.trim() || (role === 'teacher' ? '' : 'all');
 
-  if (!username || !password || !name || !cls) {
-    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
-    return;
-  }
-  if (getAllUsers()[username]) {
-    showToast('Username นี้มีอยู่แล้ว', 'error');
-    return;
-  }
-  const key = 'u_' + username.replace(/[.#$\[\]\/]/g, '_');
+  if (!username || !password || !name || !cls) { showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error'); return; }
+  if (password.length < 6) { showToast('รหัสผ่านต้องยาวอย่างน้อย 6 ตัว (ข้อกำหนดของ Firebase)', 'error'); return; }
+
   const btn = document.querySelector('#teacherModal button:last-child');
   const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'กำลังบันทึก...';
-  const result = await database.ref('users/' + key).set({
-    username, password, name, class: cls, role: 'teacher'
-  }).then(() => ({ isOk: true })).catch((e) => { console.error('เพิ่มครู error:', e); return { isOk: false }; });
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
 
-  btn.disabled = false;
-  btn.textContent = original;
-
-  if (result.isOk) {
+  try {
+    const email = username.toLowerCase() + EMAIL_DOMAIN;
+    const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
+    const uid = cred.user.uid;
+    await database.ref('users/' + uid).set({ username, name, class: cls, role });
+    await secondaryApp.auth().signOut();
     document.getElementById('teacherModal').remove();
-    showToast('เพิ่มครูสำเร็จ', 'success');
-  } else {
-    showToast('บันทึกไม่สำเร็จ ตรวจสอบ Console', 'error');
+    showToast('เพิ่มผู้ใช้สำเร็จ', 'success');
+  } catch (e) {
+    console.error('add teacher error', e.code, e.message);
+    const msg = e.code === 'auth/email-already-in-use' ? 'Username นี้มีอยู่แล้ว' : 'บันทึกไม่สำเร็จ: ' + e.message;
+    showToast(msg, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = original;
   }
 }
 
 function showImportTeacherCSV() {
+  if (!requireEdit()) return;
   const modal = document.createElement('div');
   modal.id = 'teacherCsvModal';
   modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
@@ -1948,46 +2013,66 @@ function showEditTeacher(backendId) {
 }
 
 async function saveEditTeacher(backendId) {
+  if (!requireEdit()) return;
   const u = teacherUsers.find(t => t.__backendId === backendId);
   if (!u) return;
-  const password = document.getElementById('teacherPassword').value.trim();
   const name = document.getElementById('teacherName').value.trim();
-  const cls = document.getElementById('teacherClass').value.trim();
+  const role = document.getElementById('teacherRole').value;
+  const cls = document.getElementById('teacherClass').value.trim() || (role === 'teacher' ? '' : 'all');
+  if (!name || !cls) { showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error'); return; }
 
-  if (!password || !name || !cls) {
-    showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error');
-    return;
-  }
-
-  const btn = document.querySelector('#teacherModal button:last-child');
-  const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'กำลังบันทึก...';
-
-  const result = await database.ref('users/' + backendId).update({
-    password, name, class: cls
-  }).then(() => ({ isOk: true })).catch((e) => { console.error('แก้ไขครู error:', e); return { isOk: false }; });
-
-  btn.disabled = false;
-  btn.textContent = original;
+  const result = await database.ref('users/' + backendId).update({ name, class: cls, role })
+    .then(() => ({ isOk: true })).catch((e) => { console.error(e); return { isOk: false }; });
 
   if (result.isOk) {
     document.getElementById('teacherModal').remove();
-    showToast('บันทึกการเปลี่ยนแปลงสำเร็จ', 'success');
+    showToast('บันทึกสำเร็จ', 'success');
   } else {
-    showToast('บันทึกไม่สำเร็จ ตรวจสอบ Firebase Rules', 'error');
+    showToast('บันทึกไม่สำเร็จ', 'error');
   }
 }
-
 async function deleteTeacher(backendId) {
+  if (!requireEdit()) return;
   const u = teacherUsers.find(t => t.__backendId === backendId);
   if (!u) return;
-  if (!confirm(`ยืนยันลบครู ${u.name} (${u.username})?\nการลบไม่สามารถย้อนกลับได้`)) return;
+  if (!confirm(`ยืนยันลบผู้ใช้ ${u.name} (${u.username})?\nผู้ใช้จะเข้าระบบไม่ได้อีก`)) return;
   const result = await database.ref('users/' + backendId).remove()
-    .then(() => ({ isOk: true })).catch((e) => { console.error('ลบครู error:', e); return { isOk: false }; });
-  showToast(result.isOk ? 'ลบครูสำเร็จ' : 'ลบไม่สำเร็จ', result.isOk ? 'success' : 'error');
+    .then(() => ({ isOk: true })).catch(() => ({ isOk: false }));
+  showToast(result.isOk ? 'ลบผู้ใช้สำเร็จ' : 'ลบไม่สำเร็จ', result.isOk ? 'success' : 'error');
 }
 
+async function migrateTeachersToAuth() {
+  if (currentUser.role !== 'admin') { showToast('เฉพาะแอดมิน', 'error'); return; }
+  if (!confirm('ย้ายครูเดิมทั้งหมดเข้าระบบ Auth?\nทำครั้งเดียวพอ (กดซ้ำได้ ระบบจะข้ามคนที่ย้ายแล้ว)')) return;
+
+  const snap = await database.ref('users').get();
+  const all = snap.val() || {};
+  let ok = 0, skip = 0, fail = 0;
+
+  for (const key of Object.keys(all)) {
+    const u = all[key];
+    if (!u || !u.username || !u.password) { skip++; continue; } // ไม่มีรหัส = ย้ายแล้ว
+    const email = u.username.toLowerCase() + EMAIL_DOMAIN;
+    try {
+      const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, u.password);
+      const uid = cred.user.uid;
+      await database.ref('users/' + uid).set({
+        username: u.username, name: u.name || '', class: u.class || '', role: u.role || 'teacher'
+      });
+      if (key !== uid) await database.ref('users/' + key).remove();
+      ok++;
+    } catch (e) {
+      if (e.code === 'auth/email-already-in-use') {
+        await database.ref('users/' + key + '/password').remove().catch(() => {});
+        skip++;
+      } else { console.error('migrate fail', u.username, e.code); fail++; }
+    }
+  }
+  try { await secondaryApp.auth().signOut(); } catch (e) {}
+  showToast(`ย้ายสำเร็จ ${ok} คน • ข้าม ${skip} • ล้มเหลว ${fail}`, ok || skip ? 'success' : 'error');
+}
+
+   
 function showAddClassForm() {
   const modal = document.createElement('div');
   modal.id = 'addClassModal';
@@ -2015,6 +2100,7 @@ function showAddClassForm() {
 }
 
 async function saveNewClass() {
+  if (!requireEdit()) return;
   const className = document.getElementById('addClassNameInput').value.trim();
 
   if (!className) {
@@ -2047,6 +2133,7 @@ async function saveNewClass() {
 }
 
 async function deleteClass(className) {
+  if (!requireEdit()) return;
   const count = sampleStudents.filter(s => s.class === className).length;
   if (count > 0) {
     showToast('ไม่สามารถลบชั้นที่มีนักเรียน ' + count + ' คน', 'error');
@@ -2068,6 +2155,7 @@ async function deleteClass(className) {
 }
 
 function saveSystemSettings() {
+  if (!requireEdit()) return;
   const schoolName = document.getElementById('schoolNameInput').value.trim();
   const academicYear = document.getElementById('academicYearInput').value.trim();
 
