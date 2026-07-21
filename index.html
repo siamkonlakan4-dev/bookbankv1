@@ -590,7 +590,7 @@ async function handleLogin() {
   }
 
   // --- ล็อกอินครู/แอดมิน/ผอ ผ่าน Firebase Auth ---
-  try {
+    try {
     const email = username.toLowerCase() + EMAIL_DOMAIN;
     const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
     const uid = cred.user.uid;
@@ -598,6 +598,7 @@ async function handleLogin() {
     let profile = snap.val();
 
     if (!profile) {
+      // บูตแอดมินคนแรกที่สร้างด้วยมือใน Console
       if (username.toLowerCase() === 'admin') {
         profile = { username: 'admin', name: 'ผู้ดูแลระบบ', class: 'all', role: 'admin' };
         await database.ref('users/' + uid).set(profile);
