@@ -264,7 +264,21 @@ window.elementSdk = {
     database.ref('config').update(partial).catch((e) => console.error('setConfig error:', e));
   }
 };
+   
+// แปลงวันที่เป็นปีการศึกษา พ.ศ. (เมษายนต่อท้ายปีเก่า)
+function getAcademicYear(date) {
+  const d = new Date(date);
+  const month = d.getMonth() + 1;
+  const yearAD = d.getFullYear();
+  const academicYearAD = (month >= 5) ? yearAD : yearAD - 1;
+  return academicYearAD + 543;
+}
 
+// หาช่วงวันที่ของปีการศึกษา
+function getAcademicYearRange(academicYearBE) {
+  const startAD = academicYearBE - 543;
+  return { start: `${startAD}-05-01`, end: `${startAD + 1}-04-30` };
+}
 // ===== STATE =====
 let currentUser = null;
 let allRecords = [];
