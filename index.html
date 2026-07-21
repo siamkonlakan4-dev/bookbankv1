@@ -492,11 +492,9 @@ function startUsersListener() {
     teacherUsers = arr;
     usersLoaded = true;
     if (currentUser && currentPage === 'manage') renderManage();
-  }, (err) => {
-    const u = firebase.auth().currentUser;
-    if (!u || u.isAnonymous) return;   // ← เพิ่ม !u เข้าไป
-    console.error('อ่านข้อมูล users ไม่ได้:', err.code, err.message);
-    showToast('อ่านข้อมูลผู้ใช้ไม่ได้ ตรวจสอบ Firebase Rules', 'error');
+   }, (err) => {
+    // ไม่เด้ง toast รบกวนผู้ใช้ แค่ log ไว้ดูเองพอ
+    console.warn('users listener stopped:', err.code, err.message);
   });
 }
 
@@ -622,7 +620,7 @@ async function handleLogin() {
    
 async function handleLogout() {
   if (typeof stopScanner === 'function') stopScanner();
-  stopUsersListener();          // ← ย้ายขึ้นมาบนสุด ถอด listener ก่อน
+  stopUsersListener();          // ← ย้ายขึ้นมาบนสุด
   clearSession();
   currentUser = null;
   try { await firebase.auth().signOut(); } catch (e) {}
