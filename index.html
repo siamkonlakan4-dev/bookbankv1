@@ -2326,6 +2326,7 @@ function buildPassbookHTML(student) {
           </tr>
         </thead>
         <tbody>
+          ${broughtForward !== 0 ? `
           <tr class="bg-blue-50">
             <td class="p-2 border border-ios-separator text-center">-</td>
             <td class="p-2 border border-ios-separator font-medium">ยอดยกมา (ก่อนปี ${selectedAcademicYear})</td>
@@ -2333,6 +2334,7 @@ function buildPassbookHTML(student) {
             <td class="p-2 border border-ios-separator text-right">-</td>
             <td class="p-2 border border-ios-separator text-right font-semibold">${broughtForward.toLocaleString()}</td>
           </tr>
+          ` : ''}
           ${rows.length === 0 ? `
             <tr><td colspan="5" class="p-4 text-center text-ios-gray border border-ios-separator">ยังไม่มีรายการในปีการศึกษานี้</td></tr>
           ` : rows.map((t, i) => `
