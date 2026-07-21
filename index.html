@@ -476,26 +476,35 @@ const dataHandler = {
 })();
 
 // ===== USERS + CLASSES (Firebase) =====
-authReady.then(() => {
-  database.ref('users').on('value', (snap) => {
+let usersListenerRef = null;
+
+function startUsersListener() {
+  if (usersListenerRef) return; // ฟังอยู่แล้ว ไม่ซ้ำ
+  usersListenerRef = database.ref('users');
+  usersListenerRef.on('value', (snap) => {
     const arr = [];
-    console.log('[users] จำนวน children =', snap.numChildren());
     snap.forEach((c) => {
       const v = c.val();
       if (v && typeof v === 'object' && v.username) {
         arr.push({ ...v, __backendId: c.key });
-      } else {
-        console.warn('[users] ข้ามเรคคอร์ดไม่มี username key:', c.key, v);
       }
     });
-    console.log('[users] อ่านครูได้', arr.length, 'คน:', arr.map(u => u.username));
     teacherUsers = arr;
     usersLoaded = true;
     if (currentUser && currentPage === 'manage') renderManage();
   }, (err) => {
+    const u = firebase.auth().currentUser;
+    if (u && u.isAnonymous) return; // ยังไม่ล็อกอิน ไม่ต้องเตือน
     console.error('อ่านข้อมูล users ไม่ได้:', err.code, err.message);
     showToast('อ่านข้อมูลผู้ใช้ไม่ได้ ตรวจสอบ Firebase Rules', 'error');
   });
+}
+
+function stopUsersListener() {
+  if (usersListenerRef) { usersListenerRef.off(); usersListenerRef = null; }
+  teacherUsers = [];
+  usersLoaded = false;
+}
 
   database.ref('classes').on('value', (snap) => {
     const arr = [];
@@ -538,6 +547,7 @@ function clearSession() {
 }
 
 function enterApp(username, userData) {
+  if (currentUser.role === 'admin' || currentUser.role === 'director') startUsersListener();
   currentUser = { username, ...userData };
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('mainApp').classList.remove('hidden');
@@ -599,6 +609,7 @@ async function handleLogout() {
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').classList.add('hidden');
+  stopUsersListener();
 }
 
 // ไม่ใช้ localStorage คืนค่าเองแล้ว Firebase Auth จำ session ให้ (ดู Part A)
