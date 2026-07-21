@@ -58,52 +58,14 @@
   @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
   @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
 
-  /* ================================
-     PRINT / PDF EXPORT — A4 Portrait
-     ================================ */
   @media print {
-    @page {
-      size: A4 portrait;
-      margin: 8mm;
-    }
-
-    html, body {
-      height: auto !important;
-      overflow: visible !important;
-      background: #fff !important;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    #app, #mainApp, #mainContent, main {
-      height: auto !important;
-      max-height: none !important;
-      overflow: visible !important;
-      display: block !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
+    @page { size: A4 portrait; margin: 8mm; }
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #app, #mainApp, #mainContent, main { height: auto !important; max-height: none !important; overflow: visible !important; display: block !important; padding: 0 !important; margin: 0 !important; }
     .no-print { display: none !important; }
     .fade-in { animation: none !important; }
-
-    #cardsContainer {
-      display: grid !important;
-      grid-template-columns: repeat(3, 1fr) !important;
-      gap: 4mm !important;
-      max-width: none !important;
-      width: 100% !important;
-    }
-    #cardsContainer > div {
-      page-break-inside: avoid !important;
-      break-inside: avoid !important;
-      max-width: none !important;
-      width: 100% !important;
-      height: 50mm !important;
-      margin: 0 !important;
-      box-shadow: none !important;
-      border: 1px solid #666 !important;
-      border-radius: 8px !important;
-    }
-
+    #cardsContainer { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 4mm !important; max-width: none !important; width: 100% !important; }
+    #cardsContainer > div { page-break-inside: avoid !important; break-inside: avoid !important; max-width: none !important; width: 100% !important; height: 50mm !important; margin: 0 !important; box-shadow: none !important; border: 1px solid #666 !important; border-radius: 8px !important; }
     #passbookContainer table { page-break-inside: auto; }
     #passbookContainer tr { page-break-inside: avoid; page-break-after: auto; }
     #passbookContainer thead { display: table-header-group; }
@@ -264,7 +226,7 @@ window.elementSdk = {
     database.ref('config').update(partial).catch((e) => console.error('setConfig error:', e));
   }
 };
-   
+
 // แปลงวันที่เป็นปีการศึกษา พ.ศ. (เมษายนต่อท้ายปีเก่า)
 function getAcademicYear(date) {
   const d = new Date(date);
@@ -279,6 +241,41 @@ function getAcademicYearRange(academicYearBE) {
   const startAD = academicYearBE - 543;
   return { start: `${startAD}-05-01`, end: `${startAD + 1}-04-30` };
 }
+
+// ===== ตัวเลือกปีการศึกษา (Academic Year Filter) =====
+let selectedAcademicYear = getAcademicYear(new Date());
+
+function getAcademicYearList() {
+  const cfg = parseInt((window.elementSdk?.config?.academic_year) || defaultConfig.academic_year, 10);
+  const cur = getAcademicYear(new Date());
+  return [...new Set([2567, 2568, 2569, cfg, cur])]
+    .filter(y => Number.isFinite(y))
+    .sort((a, b) => b - a);
+}
+
+function academicYearSelectorHTML() {
+  const years = getAcademicYearList();
+  return `
+    <div class="ios-card p-3 no-print flex items-center gap-2 flex-wrap">
+      <label class="text-sm font-medium text-gray-700">📅 ปีการศึกษา</label>
+      <select class="ios-input text-sm" style="width:auto;" onchange="changeAcademicYear(this.value)">
+        ${years.map(y => `<option value="${y}" ${Number(selectedAcademicYear) === y ? 'selected' : ''}>${y}</option>`).join('')}
+      </select>
+    </div>`;
+}
+
+function changeAcademicYear(val) {
+  selectedAcademicYear = parseInt(val, 10);
+  navigateTo(currentPage);
+}
+
+// ยอดสะสมถึงสิ้นปีการศึกษาที่เลือก (รวมยอดยกมาจากปีก่อน)
+function balanceOfYear(studentId, yearBE = selectedAcademicYear) {
+  return sampleTransactions
+    .filter(t => t.studentId === studentId && getAcademicYear(t.date) <= yearBE)
+    .reduce((sum, t) => sum + (t.type === 'deposit' ? t.amount : -t.amount), 0);
+}
+
 // ===== STATE =====
 let currentUser = null;
 let allRecords = [];
@@ -289,8 +286,8 @@ let sampleStudents = [];
 let sampleTransactions = [];
 let teacherUsers = [];
 let usersLoaded = false;
-let customClasses = [];     // ชื่อชั้นที่สร้างเอง
-let customClassObjs = [];   // { name, __backendId }
+let customClasses = [];
+let customClassObjs = [];
 
 const SESSION_KEY = 'savings_app_session';
 
@@ -302,17 +299,15 @@ const defaultUsers = {
 };
 
 let currentPage = 'dashboard';
-let cardHeaderColor = '#2563eb'; // สีหัวบัตรนักเรียน (ปรับได้จากหน้าพิมพ์บัตร)
+let cardHeaderColor = '#2563eb';
 
 // ===== HELPER: วันที่ / สิทธิ์ลบ =====
-// วันที่วันนี้ในรูปแบบ YYYY-MM-DD ตามเวลาท้องถิ่น
 function todayStr() {
   const d = new Date();
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
 }
 
-// ตรวจสิทธิ์ลบรายการ: แอดมินลบได้ทุกอัน / ครูลบได้เฉพาะรายการที่ตนบันทึก
 function canDeleteTxn(t) {
   if (!currentUser) return false;
   return currentUser.role === 'admin' || t.by === currentUser.username;
@@ -401,7 +396,6 @@ const dataHandler = {
       { studentId: 'STD005', type: 'deposit', amount: 1200, date: '2024-12-01T08:45:00', by: 'teacher1', balance: 1200 },
     ];
 
-    // คำนวณยอดคงเหลือจากผลรวมรายการ เพื่อรองรับการบันทึก/ลบย้อนหลัง
     if (transactions.length > 0) {
       sampleStudents.forEach(s => {
         const studentTxns = transactions.filter(t => t.studentId === s.id);
@@ -484,7 +478,6 @@ authReady.then(() => {
     console.error('อ่านข้อมูล classes ไม่ได้:', err.code, err.message);
   });
 });
-
 
 function getAllUsers() {
   const merged = { ...defaultUsers };
@@ -661,19 +654,22 @@ function renderDashboard() {
 
   if (currentUser.role === 'student') {
     const student = sampleStudents.find(s => s.id === currentUser.studentId);
-    const myTxns = sampleTransactions.filter(t => t.studentId === currentUser.studentId).sort((a,b) => new Date(b.date) - new Date(a.date));
+    const myTxns = sampleTransactions
+      .filter(t => t.studentId === currentUser.studentId && getAcademicYear(t.date) === selectedAcademicYear)
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
     content.innerHTML = `
       <div class="fade-in max-w-lg mx-auto space-y-4">
+        ${academicYearSelectorHTML()}
         <div class="ios-card p-6 text-center">
           <div class="w-16 h-16 rounded-full bg-ios-blue/10 flex items-center justify-center mx-auto mb-3">
             <i data-lucide="piggy-bank" style="width:32px;height:32px;color:#007AFF;"></i>
           </div>
-          <p class="text-sm text-ios-gray">ยอดเงินคงเหลือ</p>
-          <p class="text-3xl font-bold text-ios-blue mt-1">฿${(student?.balance || 0).toLocaleString()}</p>
+          <p class="text-sm text-ios-gray">ยอดเงินคงเหลือ (ถึงปีการศึกษา ${selectedAcademicYear})</p>
+          <p class="text-3xl font-bold text-ios-blue mt-1">฿${balanceOfYear(currentUser.studentId).toLocaleString()}</p>
           <p class="text-xs text-ios-gray mt-2">${student?.prefix}${student?.name} | ${student?.class}</p>
         </div>
         <div class="ios-card p-4">
-          <h3 class="font-semibold text-gray-800 mb-3">ประวัติรายการ</h3>
+          <h3 class="font-semibold text-gray-800 mb-3">ประวัติรายการ (ปีการศึกษา ${selectedAcademicYear})</h3>
           ${myTxns.length === 0 ? '<p class="text-sm text-ios-gray text-center py-4">ยังไม่มีรายการ</p>' : myTxns.slice(0, 10).map(t => `
             <div class="flex items-center justify-between py-2 border-b border-ios-separator last:border-0">
               <div>
@@ -702,14 +698,11 @@ function renderDashboard() {
     ? allTxns.filter(t => relevantStudents.find(s => s.id === t.studentId))
     : [];
 
-  const totalBalance = relevantStudents.reduce((sum, s) => sum + s.balance, 0);
-  const now = new Date();
-  const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-  const weekTxns = relevantTxns.filter(t => new Date(t.date) >= weekAgo);
-  const weekDeposit = weekTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
-  const weekWithdraw = weekTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
+  const totalBalance = relevantStudents.reduce((sum, s) => sum + balanceOfYear(s.id), 0);
+  const yearTxns = relevantTxns.filter(t => getAcademicYear(t.date) === selectedAcademicYear);
+  const yearDeposit = yearTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
+  const yearWithdraw = yearTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
 
-  // กรองรายการตามวันที่ที่เลือก
   const [fy, fm, fd] = dashboardDateFilter.split('-').map(Number);
   const dayStart = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
   const dayEnd = new Date(fy, fm - 1, fd, 23, 59, 59, 999);
@@ -720,7 +713,6 @@ function renderDashboard() {
   });
   const recentTxns = todayTxns.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  // สรุปยอดของวันที่เลือก
   const todayDeposit = todayTxns.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
   const todayWithdraw = todayTxns.filter(t => t.type === 'withdraw').reduce((s, t) => s + t.amount, 0);
 
@@ -738,12 +730,13 @@ function renderDashboard() {
 
     content.innerHTML = `
     <div class="fade-in space-y-4 max-w-4xl mx-auto">
+      ${academicYearSelectorHTML()}
       ${filterHTML}
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#007AFF 0%,#5856D6 100%);">
           <i data-lucide="wallet" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
           <div class="relative">
-            <p class="text-xs opacity-90">ยอดเงินรวม</p>
+            <p class="text-xs opacity-90">ยอดเงินรวม (ถึงปีการศึกษา ${selectedAcademicYear})</p>
             <p class="text-3xl font-bold mt-1">฿${totalBalance.toLocaleString()}</p>
             <p class="text-xs opacity-90 mt-1">${relevantStudents.length} บัญชี</p>
           </div>
@@ -751,17 +744,17 @@ function renderDashboard() {
         <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#34C759 0%,#30B0C7 100%);">
           <i data-lucide="trending-up" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
           <div class="relative">
-            <p class="text-xs opacity-90">ยอดฝาก (สัปดาห์นี้)</p>
-            <p class="text-3xl font-bold mt-1">+฿${weekDeposit.toLocaleString()}</p>
-            <p class="text-xs opacity-90 mt-1">${weekTxns.filter(t => t.type === 'deposit').length} รายการ</p>
+            <p class="text-xs opacity-90">ยอดฝาก (ปีการศึกษา ${selectedAcademicYear})</p>
+            <p class="text-3xl font-bold mt-1">+฿${yearDeposit.toLocaleString()}</p>
+            <p class="text-xs opacity-90 mt-1">${yearTxns.filter(t => t.type === 'deposit').length} รายการ</p>
           </div>
         </div>
         <div class="relative overflow-hidden rounded-2xl p-4 text-white shadow-lg" style="background:linear-gradient(135deg,#FF9500 0%,#FF3B30 100%);">
           <i data-lucide="trending-down" style="width:80px;height:80px;position:absolute;right:-12px;bottom:-12px;opacity:0.18;"></i>
           <div class="relative">
-            <p class="text-xs opacity-90">ยอดถอน (สัปดาห์นี้)</p>
-            <p class="text-3xl font-bold mt-1">-฿${weekWithdraw.toLocaleString()}</p>
-            <p class="text-xs opacity-90 mt-1">${weekTxns.filter(t => t.type === 'withdraw').length} รายการ</p>
+            <p class="text-xs opacity-90">ยอดถอน (ปีการศึกษา ${selectedAcademicYear})</p>
+            <p class="text-3xl font-bold mt-1">-฿${yearWithdraw.toLocaleString()}</p>
+            <p class="text-xs opacity-90 mt-1">${yearTxns.filter(t => t.type === 'withdraw').length} รายการ</p>
           </div>
         </div>
       </div>
@@ -904,18 +897,17 @@ async function stopScanner() {
   }
   if (readerEl) readerEl.classList.add('hidden');
 }
-// ===== SCAN FEEDBACK (เสียง BEEP + สั่น) =====
+
+// ===== SCAN FEEDBACK =====
 let audioCtx = null;
 
 function scanFeedback(success = true) {
-  // สั่น (มือถือที่รองรับ)
   try {
     if (navigator.vibrate) {
       navigator.vibrate(success ? 120 : [80, 60, 80]);
     }
   } catch (e) {}
 
-  // เสียง BEEP ผ่าน Web Audio API
   try {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -927,7 +919,6 @@ function scanFeedback(success = true) {
     osc.connect(gain);
     gain.connect(audioCtx.destination);
 
-    // สแกนสำเร็จ = เสียงสูงสั้น, ไม่พบ = เสียงต่ำ
     osc.type = 'square';
     osc.frequency.value = success ? 880 : 300;
 
@@ -1058,7 +1049,6 @@ async function saveTransaction() {
 
   const newBalance = txnType === 'deposit' ? txnSelectedStudent.balance + txnAmount : txnSelectedStudent.balance - txnAmount;
 
-  // สร้างวันที่จากช่องที่เลือก (คงเวลาปัจจุบันไว้เพื่อเรียงลำดับภายในวัน)
   let isoDate;
   const dateInput = document.getElementById('txnDate');
   if (dateInput && dateInput.value) {
@@ -1109,12 +1099,14 @@ function renderAccounts() {
 
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-semibold text-lg">บัญชีนักเรียน</h2>
         <div class="flex flex-wrap gap-2">
           ${isAdmin ? `
             <button onclick="showAddStudent()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">+ เพิ่มนักเรียน</button>
             <button onclick="showImportCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้า CSV</button>
+            <button onclick="showPromoteClass()" class="ios-btn px-4 py-2 bg-ios-purple text-white text-sm">⬆ เลื่อนชั้น</button>
           ` : ''}
         </div>
       </div>
@@ -1150,7 +1142,7 @@ function renderAccounts() {
                 <td class="p-3 text-ios-blue font-medium">${s.id}</td>
                 <td class="p-3">${s.prefix}${s.name}</td>
                 <td class="p-3 hidden sm:table-cell">${s.class}</td>
-                <td class="p-3 text-right hidden sm:table-cell font-semibold">฿${s.balance.toLocaleString()}</td>
+                <td class="p-3 text-right hidden sm:table-cell font-semibold">฿${balanceOfYear(s.id).toLocaleString()}</td>
                 ${isAdmin ? `<td class="p-3 text-center whitespace-nowrap">
                   <button onclick="showEditStudent('${s.id}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
                   <button onclick="deleteOneStudent('${s.id}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
@@ -1201,6 +1193,88 @@ async function deleteClassStudents() {
   let count = 0;
   for (const s of inClass) { if (await removeStudentById(s.id)) count++; }
   showToast(`ลบห้อง ${cls} สำเร็จ ${count} คน`, 'success');
+}
+
+// ===== เลื่อนชั้นนักเรียน =====
+function suggestNextClass(cls) {
+  const m = (cls || '').match(/^(ป|ม)\.(\d+)\/(\d+)$/);
+  if (!m) return '';
+  const level = m[1], grade = parseInt(m[2], 10), room = m[3];
+  if (level === 'ป') return grade < 6 ? `ป.${grade + 1}/${room}` : `ม.1/${room}`;
+  if (level === 'ม') return grade < 6 ? `ม.${grade + 1}/${room}` : '';
+  return '';
+}
+
+function showPromoteClass() {
+  const classes = getAllClasses();
+  const modal = document.createElement('div');
+  modal.id = 'promoteModal';
+  modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
+      <h3 class="font-semibold text-lg mb-1">เลื่อนชั้นนักเรียน</h3>
+      <p class="text-xs text-ios-gray mb-4">ย้ายนักเรียนทั้งห้องไปชั้นใหม่ (ยอดเงินและประวัติคงเดิม)</p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-ios-gray">ห้องต้นทาง</label>
+          <select id="promoteSource" class="ios-input" onchange="onPromoteSourceChange()">
+            <option value="">-- เลือกห้อง --</option>
+            ${classes.map(c => `<option value="${c}">${c} (${sampleStudents.filter(s => s.class === c).length} คน)</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-ios-gray">เลื่อนไปห้อง (แก้ไขได้)</label>
+          <input type="text" id="promoteTarget" class="ios-input" placeholder="เช่น ป.2/1">
+        </div>
+        <div id="promotePreview" class="text-xs text-ios-gray"></div>
+      </div>
+      <div class="bg-ios-lightgray p-3 rounded-lg mt-3 text-xs text-gray-600">
+        ⚠️ จะเปลี่ยนห้องของนักเรียนทุกคนในห้องต้นทาง และย้อนกลับอัตโนมัติไม่ได้ ควรสำรองข้อมูลก่อน
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="document.getElementById('promoteModal').remove()" class="ios-btn flex-1 py-2 border border-ios-separator">ยกเลิก</button>
+        <button onclick="confirmPromotion()" class="ios-btn flex-1 py-2 bg-ios-orange text-white">เลื่อนชั้น</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function onPromoteSourceChange() {
+  const src = document.getElementById('promoteSource').value;
+  const target = suggestNextClass(src);
+  document.getElementById('promoteTarget').value = target;
+  const count = sampleStudents.filter(s => s.class === src).length;
+  const preview = document.getElementById('promotePreview');
+  if (!src) { preview.innerHTML = ''; return; }
+  preview.innerHTML = target
+    ? `จะเลื่อน ${count} คน จาก <b>${src}</b> → <b>${target}</b>`
+    : `<span class="text-ios-red">${src} เป็นชั้นจบการศึกษา กรุณาระบุห้องปลายทางเอง</span>`;
+}
+
+async function confirmPromotion() {
+  const src = document.getElementById('promoteSource').value;
+  const target = document.getElementById('promoteTarget').value.trim();
+  if (!src) { showToast('เลือกห้องต้นทาง', 'error'); return; }
+  if (!target) { showToast('ระบุห้องปลายทาง', 'error'); return; }
+
+  const list = sampleStudents.filter(s => s.class === src && s.__backendId);
+  if (list.length === 0) { showToast('ห้องนี้ไม่มีนักเรียน (หรือเป็นข้อมูลตัวอย่าง)', 'error'); return; }
+
+  if (!confirm(`ยืนยันเลื่อนชั้น ${list.length} คน\nจาก ${src} → ${target}?\nย้อนกลับอัตโนมัติไม่ได้`)) return;
+
+  const btn = document.querySelector('#promoteModal button:last-child');
+  btn.disabled = true; btn.textContent = 'กำลังเลื่อนชั้น...';
+
+  let count = 0;
+  for (const s of list) {
+    const ok = await database.ref('students/' + s.__backendId)
+      .update({ student_class: target })
+      .then(() => true).catch((e) => { console.error('เลื่อนชั้น error:', e); return false; });
+    if (ok) count++;
+  }
+
+  const m = document.getElementById('promoteModal'); if (m) m.remove();
+  showToast(`เลื่อนชั้น ${src} → ${target} สำเร็จ ${count} คน`, count ? 'success' : 'error');
 }
 
 function showAddStudent() {
@@ -1543,6 +1617,7 @@ function renderManage() {
 
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
       <h2 class="font-semibold text-lg">จัดการผู้ใช้งาน</h2>
 
       <div class="ios-card p-4">
@@ -1565,7 +1640,6 @@ function renderManage() {
         <div class="space-y-2 mb-3">
           ${classes.length === 0 ? '<p class="text-sm text-ios-gray">ยังไม่มีชั้นเรียน</p>' : classes.map(c => {
             const count = sampleStudents.filter(s => s.class === c).length;
-            const isCustomEmpty = count === 0 && customClasses.includes(c);
             return `
               <div class="flex items-center justify-between p-3 bg-ios-lightgray rounded-lg">
                 <div>
@@ -1983,14 +2057,17 @@ function renderRanking() {
     subtitle = currentUser.class + ' - ยอดเงินสะสมสูงสุด';
   }
 
-  const sorted = [...relevantStudents].sort((a, b) => b.balance - a.balance);
+  const sorted = [...relevantStudents]
+    .map(s => ({ ...s, yearBalance: balanceOfYear(s.id) }))
+    .sort((a, b) => b.yearBalance - a.yearBalance);
   const medals = ['🥇', '🥈', '🥉'];
 
   content.innerHTML = `
     <div class="fade-in max-w-lg mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
       <div class="ios-card p-4 text-center">
         <h2 class="font-semibold text-lg">${title}</h2>
-        <p class="text-xs text-ios-gray">${subtitle}</p>
+        <p class="text-xs text-ios-gray">${subtitle} (ปีการศึกษา ${selectedAcademicYear})</p>
       </div>
       <div class="space-y-2">
         ${sorted.map((s, i) => `
@@ -2000,7 +2077,7 @@ function renderRanking() {
               <p class="font-medium">${s.prefix}${s.name}</p>
               <p class="text-xs text-ios-gray">${currentUser.role === 'admin' ? s.class : 'เลขที่ ' + s.number}</p>
             </div>
-            <p class="font-bold text-ios-blue">฿${s.balance.toLocaleString()}</p>
+            <p class="font-bold text-ios-blue">฿${s.yearBalance.toLocaleString()}</p>
           </div>
         `).join('')}
       </div>
@@ -2015,6 +2092,7 @@ function renderCards() {
 
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
       <div class="ios-card p-4 no-print">
         <h2 class="font-semibold text-lg mb-3">🪪 พิมพ์บัตรนักเรียน</h2>
         <div class="flex flex-wrap gap-2 mb-3 items-center">
@@ -2119,6 +2197,7 @@ function renderPassbook() {
 
   content.innerHTML = `
     <div class="fade-in max-w-3xl mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
       <div class="ios-card p-4 no-print">
         <h2 class="font-semibold text-lg mb-3">📒 พิมพ์สมุดบัญชีนักเรียน</h2>
         <div class="flex flex-wrap gap-2 items-center">
@@ -2138,6 +2217,8 @@ function renderPassbook() {
       <div id="passbookContainer"></div>
     </div>
   `;
+
+  if (pbCurrentStudentId) generatePassbook(pbCurrentStudentId);
 }
 
 function onPassbookClassChange() {
@@ -2160,32 +2241,33 @@ function generatePassbook(studentId) {
   const student = sampleStudents.find(s => s.id === studentId);
   if (!student) { container.innerHTML = ''; return; }
 
-  const txns = sampleTransactions
-    .filter(t => t.studentId === studentId)
+  const yearTxns = sampleTransactions
+    .filter(t => t.studentId === studentId && getAcademicYear(t.date) === selectedAcademicYear)
     .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  let running = 0;
-  const rows = txns.map(t => {
+  const broughtForward = balanceOfYear(studentId, selectedAcademicYear - 1);
+
+  let running = broughtForward;
+  const rows = yearTxns.map(t => {
     running += (t.type === 'deposit' ? t.amount : -t.amount);
     return { ...t, running };
   });
 
-  const totalDeposit = txns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
-  const totalWithdraw = txns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
-  const finalBalance = rows.length ? rows[rows.length - 1].running : 0;
+  const totalDeposit = yearTxns.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0);
+  const totalWithdraw = yearTxns.filter(t => t.type === 'withdraw').reduce((sum, t) => sum + t.amount, 0);
+  const finalBalance = running;
 
   const config = window.elementSdk.config;
   const schoolName = config.school_name || defaultConfig.school_name;
-  const year = config.academic_year || defaultConfig.academic_year;
 
   container.innerHTML = `
     <div class="ios-card p-6" style="background:#fff;">
       <div class="flex items-center gap-3 border-b-2 border-ios-blue pb-3 mb-4">
-        <img src="https://img1.pic.in.th/images/-7b8aca0fdb73ae1d.png" alt="โลโก้" class="w-12 h-12 rounded-full object-cover" onerror="this.style.background='#007AFF';">
+        <img src="logo bookbank.png" alt="โลโก้" class="w-12 h-12 rounded-full object-cover" onerror="this.style.background='#007AFF';">
         <div class="flex-1">
           <h2 class="font-bold text-lg">${schoolName}</h2>
-          <p class="text-sm text-ios-gray">สมุดบัญชีเงินฝากนักเรียน • ปีการศึกษา ${year}</p>
+          <p class="text-sm text-ios-gray">สมุดบัญชีเงินฝากนักเรียน • ปีการศึกษา ${selectedAcademicYear}</p>
         </div>
       </div>
 
@@ -2207,8 +2289,15 @@ function generatePassbook(studentId) {
           </tr>
         </thead>
         <tbody>
+          <tr class="bg-blue-50">
+            <td class="p-2 border border-ios-separator text-center">-</td>
+            <td class="p-2 border border-ios-separator font-medium">ยอดยกมา (ก่อนปี ${selectedAcademicYear})</td>
+            <td class="p-2 border border-ios-separator text-right">-</td>
+            <td class="p-2 border border-ios-separator text-right">-</td>
+            <td class="p-2 border border-ios-separator text-right font-semibold">${broughtForward.toLocaleString()}</td>
+          </tr>
           ${rows.length === 0 ? `
-            <tr><td colspan="5" class="p-4 text-center text-ios-gray border border-ios-separator">ยังไม่มีรายการ</td></tr>
+            <tr><td colspan="5" class="p-4 text-center text-ios-gray border border-ios-separator">ยังไม่มีรายการในปีการศึกษานี้</td></tr>
           ` : rows.map((t, i) => `
             <tr>
               <td class="p-2 border border-ios-separator text-center">${i + 1}</td>
@@ -2221,7 +2310,7 @@ function generatePassbook(studentId) {
         </tbody>
         <tfoot>
           <tr class="bg-ios-lightgray font-semibold">
-            <td class="p-2 border border-ios-separator text-center" colspan="2">รวม</td>
+            <td class="p-2 border border-ios-separator text-center" colspan="2">รวม (เฉพาะปีนี้)</td>
             <td class="p-2 border border-ios-separator text-right text-ios-green">${totalDeposit.toLocaleString()}</td>
             <td class="p-2 border border-ios-separator text-right text-ios-red">${totalWithdraw.toLocaleString()}</td>
             <td class="p-2 border border-ios-separator text-right text-ios-blue">${finalBalance.toLocaleString()}</td>
