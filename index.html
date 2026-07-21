@@ -506,6 +506,7 @@ function stopUsersListener() {
   usersLoaded = false;
 }
 
+authReady.then(() => {
   database.ref('classes').on('value', (snap) => {
     const arr = [];
     snap.forEach((c) => { const v = c.val(); if (v && v.name) arr.push({ name: v.name, __backendId: c.key }); });
@@ -547,8 +548,8 @@ function clearSession() {
 }
 
 function enterApp(username, userData) {
-  if (currentUser.role === 'admin' || currentUser.role === 'director') startUsersListener();
   currentUser = { username, ...userData };
+  if (currentUser.role === 'admin' || currentUser.role === 'director') startUsersListener();
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('mainApp').classList.remove('hidden');
   document.getElementById('currentUserDisplay').textContent = currentUser.name + ' (' + getRoleName(currentUser.role) + ')';
@@ -617,10 +618,6 @@ function restoreSession() { /* no-op: จัดการใน onAuthStateChange
 
 function getRoleName(role) {
   return { admin: 'แอดมิน', director: 'ผู้อำนวยการ', teacher: 'ครูประจำชั้น', student: 'นักเรียน' }[role] || role;
-}
-
-function getRoleName(role) {
-  return { admin: 'แอดมิน', teacher: 'ครูประจำชั้น', student: 'นักเรียน' }[role] || role;
 }
 
 // ===== NAVIGATION =====
