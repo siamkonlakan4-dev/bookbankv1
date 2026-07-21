@@ -2232,6 +2232,7 @@ function renderCardQRCodes(list, attempt) {
 
 // ===== PASSBOOK (สมุดบัญชี) =====
 let pbCurrentStudentId = null;
+let pbClassMode = false;
 function renderPassbook() {
   const content = document.getElementById('mainContent');
   const relevant = currentUser.role === 'admin'
@@ -2255,6 +2256,7 @@ function renderPassbook() {
             <option value="">-- เลือกนักเรียน --</option>
             ${currentUser.role === 'teacher' ? relevant.map(s => `<option value="${s.id}">${s.prefix}${s.name} (${s.id})</option>`).join('') : ''}
           </select>
+          <button onclick="generateClassPassbooks()" class="ios-btn px-4 py-2 bg-ios-purple text-white text-sm">📚 พิมพ์ทั้งห้อง</button>
           <button onclick="window.print()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">พิมพ์ / Export PDF</button>
         </div>
       </div>
@@ -2275,22 +2277,13 @@ function onPassbookClassChange() {
   document.getElementById('passbookContainer').innerHTML = '';
 }
 
-function generatePassbook(studentId) {
-  const container = document.getElementById('passbookContainer');
-  if (!container) return;
-
-  pbCurrentStudentId = studentId || null;
-  if (!studentId) { container.innerHTML = ''; return; }
-
-  const student = sampleStudents.find(s => s.id === studentId);
-  if (!student) { container.innerHTML = ''; return; }
-
+function buildPassbookHTML(student) {
   const yearTxns = sampleTransactions
-    .filter(t => t.studentId === studentId && getAcademicYear(t.date) === selectedAcademicYear)
+    .filter(t => t.studentId === student.id && getAcademicYear(t.date) === selectedAcademicYear)
     .slice()
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  const broughtForward = balanceOfYear(studentId, selectedAcademicYear - 1);
+  const broughtForward = balanceOfYear(student.id, selectedAcademicYear - 1);
 
   let running = broughtForward;
   const rows = yearTxns.map(t => {
@@ -2305,7 +2298,7 @@ function generatePassbook(studentId) {
   const config = window.elementSdk.config;
   const schoolName = config.school_name || defaultConfig.school_name;
 
-  container.innerHTML = `
+  return `
     <div class="ios-card p-6" style="background:#fff;">
       <div class="flex items-center gap-3 border-b-2 border-ios-blue pb-3 mb-4">
         <img src="logo bookbank.png" alt="โลโก้" class="w-12 h-12 rounded-full object-cover" onerror="this.style.background='#007AFF';">
@@ -2373,6 +2366,51 @@ function generatePassbook(studentId) {
   `;
 }
 
+function generatePassbook(studentId) {
+  const container = document.getElementById('passbookContainer');
+  if (!container) return;
+
+  pbCurrentStudentId = studentId || null;
+  pbClassMode = false;
+  if (!studentId) { container.innerHTML = ''; return; }
+
+  const student = sampleStudents.find(s => s.id === studentId);
+  if (!student) { container.innerHTML = ''; return; }
+
+  container.innerHTML = buildPassbookHTML(student);
+}
+
+function generateClassPassbooks() {
+  const container = document.getElementById('passbookContainer');
+  if (!container) return;
+
+  let cls;
+  if (currentUser.role === 'admin') {
+    const sel = document.getElementById('pbClassSelect');
+    cls = sel ? sel.value : '';
+  } else {
+    cls = currentUser.class;
+  }
+
+  if (!cls) { showToast('กรุณาเลือกชั้นก่อน', 'error'); return; }
+
+  const list = sampleStudents
+    .filter(s => s.class === cls)
+    .sort((a, b) => (parseInt(a.number) || 0) - (parseInt(b.number) || 0));
+
+  if (list.length === 0) { showToast('ห้องนี้ไม่มีนักเรียน', 'error'); return; }
+
+  pbCurrentStudentId = null;
+  pbClassMode = true;
+
+  container.innerHTML = list.map((s, i) => `
+    <div style="${i < list.length - 1 ? 'page-break-after:always;' : ''}" class="mb-4">
+      ${buildPassbookHTML(s)}
+    </div>
+  `).join('');
+
+  showToast(`เตรียมสมุดบัญชีห้อง ${cls} จำนวน ${list.length} คน กด "พิมพ์" ได้เลย`, 'success');
+}
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
