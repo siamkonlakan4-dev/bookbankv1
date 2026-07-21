@@ -1093,11 +1093,11 @@ async function saveTransaction() {
 }
 
 // ===== ACCOUNTS =====
+let accountsSearch = '';
 function renderAccounts() {
   const content = document.getElementById('mainContent');
-  const relevantStudents = currentUser.role === 'admin' ? sampleStudents : sampleStudents.filter(s => s.class === currentUser.class);
-  const classes = getAllClasses();
   const isAdmin = currentUser.role === 'admin';
+  const classes = getAllClasses();
 
   content.innerHTML = `
     <div class="fade-in max-w-4xl mx-auto space-y-4">
@@ -1113,6 +1113,10 @@ function renderAccounts() {
         </div>
       </div>
 
+      <div class="ios-card p-3">
+        <input type="text" id="accountsSearchInput" class="ios-input text-sm" placeholder="🔍 ค้นหา รหัส / ชื่อ / ชั้น..." value="${accountsSearch}" oninput="filterAccounts(this.value)">
+      </div>
+
       ${isAdmin ? `
         <div class="ios-card p-3 flex flex-wrap items-center gap-2">
           <button onclick="deleteSelectedStudents()" class="ios-btn px-4 py-2 bg-ios-red text-white text-sm">ลบที่เลือก</button>
@@ -1125,36 +1129,65 @@ function renderAccounts() {
         </div>
       ` : ''}
 
-      <div class="ios-card overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-ios-lightgray">
-            <tr>
-              ${isAdmin ? '<th class="p-3 text-center"><input type="checkbox" id="selectAllStudents" onclick="toggleSelectAll(this)"></th>' : ''}
-              <th class="p-3 text-left">รหัส</th>
-              <th class="p-3 text-left">ชื่อ-สกุล</th>
-              <th class="p-3 text-left hidden sm:table-cell">ชั้น</th>
-              <th class="p-3 text-right hidden sm:table-cell">ยอดเงิน</th>
-              ${isAdmin ? '<th class="p-3 text-center">จัดการ</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${relevantStudents.map(s => `
-              <tr class="border-t border-ios-separator hover:bg-ios-lightgray/50">
-                ${isAdmin ? `<td class="p-3 text-center"><input type="checkbox" class="student-check" value="${s.id}"></td>` : ''}
-                <td class="p-3 text-ios-blue font-medium">${s.id}</td>
-                <td class="p-3">${s.prefix}${s.name}</td>
-                <td class="p-3 hidden sm:table-cell">${s.class}</td>
-                <td class="p-3 text-right hidden sm:table-cell font-semibold">฿${balanceOfYear(s.id).toLocaleString()}</td>
-                ${isAdmin ? `<td class="p-3 text-center whitespace-nowrap">
-                  <button onclick="showEditStudent('${s.id}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
-                  <button onclick="deleteOneStudent('${s.id}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
-                </td>` : ''}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
+      <div id="accountsTableWrap"></div>
     </div>
+  `;
+  renderAccountsTable();
+}
+
+function filterAccounts(v) {
+  accountsSearch = v;
+  renderAccountsTable();
+}
+
+function renderAccountsTable() {
+  const wrap = document.getElementById('accountsTableWrap');
+  if (!wrap) return;
+  const isAdmin = currentUser.role === 'admin';
+
+  let list = isAdmin ? sampleStudents : sampleStudents.filter(s => s.class === currentUser.class);
+  const q = accountsSearch.trim().toLowerCase();
+  if (q) {
+    list = list.filter(s =>
+      s.id.toLowerCase().includes(q) ||
+      (s.prefix + s.name).toLowerCase().includes(q) ||
+      (s.class || '').toLowerCase().includes(q)
+    );
+  }
+
+  wrap.innerHTML = `
+    <div class="ios-card overflow-x-auto">
+      <table class="w-full text-sm" style="min-width:560px;">
+        <thead class="bg-ios-lightgray">
+          <tr>
+            ${isAdmin ? '<th class="p-3 text-center"><input type="checkbox" id="selectAllStudents" onclick="toggleSelectAll(this)"></th>' : ''}
+            <th class="p-3 text-left">รหัส</th>
+            <th class="p-3 text-left">ชื่อ-สกุล</th>
+            <th class="p-3 text-left">ชั้น</th>
+            <th class="p-3 text-right">ยอดเงิน</th>
+            ${isAdmin ? '<th class="p-3 text-center">จัดการ</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${list.length === 0 ? `
+            <tr><td colspan="${isAdmin ? 6 : 4}" class="p-4 text-center text-ios-gray">ไม่พบนักเรียน</td></tr>
+          ` : list.map(s => `
+            <tr class="border-t border-ios-separator hover:bg-ios-lightgray/50">
+              ${isAdmin ? `<td class="p-3 text-center"><input type="checkbox" class="student-check" value="${s.id}"></td>` : ''}
+              <td class="p-3 text-ios-blue font-medium whitespace-nowrap">${s.id}</td>
+              <td class="p-3 whitespace-nowrap">${s.prefix}${s.name}</td>
+              <td class="p-3 whitespace-nowrap">${s.class}</td>
+              <td class="p-3 text-right whitespace-nowrap font-semibold">฿${balanceOfYear(s.id).toLocaleString()}</td>
+              ${isAdmin ? `<td class="p-3 text-center whitespace-nowrap">
+                <button onclick="showEditStudent('${s.id}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
+                <button onclick="deleteOneStudent('${s.id}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
+              </td>` : ''}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-ios-gray text-center mt-2">แสดง ${list.length} คน${q ? ' (จากการค้นหา)' : ''} • เลื่อนตารางแนวนอนเพื่อดูข้อมูลครบ</p>
   `;
 }
 
