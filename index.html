@@ -494,7 +494,7 @@ function startUsersListener() {
     if (currentUser && currentPage === 'manage') renderManage();
   }, (err) => {
     const u = firebase.auth().currentUser;
-    if (u && u.isAnonymous) return; // ยังไม่ล็อกอิน ไม่ต้องเตือน
+    if (!u || u.isAnonymous) return;   // ← เพิ่ม !u เข้าไป
     console.error('อ่านข้อมูล users ไม่ได้:', err.code, err.message);
     showToast('อ่านข้อมูลผู้ใช้ไม่ได้ ตรวจสอบ Firebase Rules', 'error');
   });
@@ -622,6 +622,7 @@ async function handleLogin() {
    
 async function handleLogout() {
   if (typeof stopScanner === 'function') stopScanner();
+  stopUsersListener();          // ← ย้ายขึ้นมาบนสุด ถอด listener ก่อน
   clearSession();
   currentUser = null;
   try { await firebase.auth().signOut(); } catch (e) {}
@@ -631,7 +632,6 @@ async function handleLogout() {
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').classList.add('hidden');
-  stopUsersListener();
 }
 
 // ไม่ใช้ localStorage คืนค่าเองแล้ว Firebase Auth จำ session ให้ (ดู Part A)
