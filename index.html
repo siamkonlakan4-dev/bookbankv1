@@ -2035,9 +2035,9 @@ async function importTeacherCSV() {
    
 function downloadTeacherCSVTemplate() {
   const template = `Username,รหัสผ่าน,ชื่อ-สกุล,ชั้น
-teacher3,1234,ครูสมศรี ใจงาม,ป.3/1
-teacher4,1234,ครูมานพ ตั้งใจ,ป.4/1
-teacher5,1234,ครูวิภา สอนดี,ป.5/1`;
+teacher3,123456,ครูสมศรี ใจงาม,ป.3/1
+teacher4,123456,ครูมานพ ตั้งใจ,ป.4/1
+teacher5,123456,ครูวิภา สอนดี,ป.5/1`;
 
   const blob = new Blob(['\ufeff' + template], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
