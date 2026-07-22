@@ -895,7 +895,7 @@ function renderTransaction() {
           <button onclick="stopScanner()" class="ios-btn flex-1 py-2 bg-ios-red text-white text-sm">ปิดกล้อง</button>
         </div>
         <div id="qrReader" class="hidden mb-3 rounded-lg overflow-hidden mx-auto" style="width:100%;max-width:320px;"></div>
-        <input type="text" id="studentSearch" class="ios-input" placeholder="พิมพ์รหัสนักเรียน หรือชื่อ..." oninput="searchStudent(this.value)">
+        <input type="text" id="studentSearch" class="ios-input" placeholder="พิมพ์รหัสนักเรียน หรือชื่อ..." oninput="searchStudent(this.value)" onkeydown="onSearchKeydown(event)">
         <div id="searchResults" class="mt-2"></div>
       </div>
 
@@ -1053,6 +1053,34 @@ function searchStudent(query) {
   }
 }
 
+function onSearchKeydown(e) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = e.target.value.trim();
+  if (!q) return;
+
+  // หารหัสตรงเป๊ะก่อน (กรณียิงบาร์โค้ด)
+  let match = sampleStudents.find(s => s.id.toLowerCase() === q.toLowerCase());
+
+  // ถ้าไม่เจอรหัสตรง ลองหาแบบค้นชื่อ/รหัสบางส่วน ถ้าเหลือคนเดียวก็เลือกเลย
+  if (!match) {
+    const found = sampleStudents.filter(s =>
+      s.id.toLowerCase().includes(q.toLowerCase()) ||
+      (s.prefix + s.name).includes(q)
+    );
+    if (found.length === 1) match = found[0];
+  }
+
+  if (!match) { showToast('ไม่พบนักเรียน ' + q, 'error'); return; }
+
+  // ครูเลือกได้เฉพาะห้องตัวเอง
+  if (currentUser.role === 'teacher' && match.class !== currentUser.class) {
+    showToast('นักเรียนคนนี้ไม่ได้อยู่ห้องของคุณ', 'error');
+    return;
+  }
+  selectStudent(match.id);
+}
+   
 function selectStudent(id) {
   txnSelectedStudent = sampleStudents.find(s => s.id === id);
   if (!txnSelectedStudent) return;
@@ -1157,10 +1185,15 @@ async function saveTransaction() {
   if (result.isOk) {
     txnSelectedStudent.balance = newBalance;
     showToast(`${txnType === 'deposit' ? 'ฝาก' : 'ถอน'} ฿${txnAmount} สำเร็จ`, 'success');
+    // รีเซ็ตฟอร์มเตรียมรับคนถัดไป
+    txnSelectedStudent = null;
     txnAmount = 0;
-    document.getElementById('customAmount').value = '';
-    updateAmountBtns();
-    selectStudent(txnSelectedStudent.id);
+    document.getElementById('txnForm').classList.add('hidden');
+    const searchInput = document.getElementById('studentSearch');
+    if (searchInput) {
+      searchInput.value = '';
+      searchInput.focus();   // ← เคอร์เซอร์กลับไปที่ช่องค้นหา พร้อมยิงบาร์โค้ดคนต่อไป
+    }
   } else {
     showToast('เกิดข้อผิดพลาด กรุณาลองใหม่', 'error');
   }
