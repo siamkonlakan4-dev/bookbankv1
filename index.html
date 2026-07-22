@@ -1189,6 +1189,7 @@ function renderAccounts() {
           ${isAdmin ? `
             <button onclick="showAddStudent()" class="ios-btn px-4 py-2 bg-ios-green text-white text-sm">+ เพิ่มนักเรียน</button>
             <button onclick="showImportCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้า CSV</button>
+            <button onclick="showUpdateIdCardCSV()" class="ios-btn px-4 py-2 bg-ios-blue text-white text-sm">🪪 อัปเดตเลขบัตร</button>
             <button onclick="showPromoteClass()" class="ios-btn px-4 py-2 bg-ios-purple text-white text-sm">⬆ เลื่อนชั้น</button>
           ` : ''}
         </div>
@@ -1716,6 +1717,88 @@ async function importCSV() {
 
   document.getElementById('csvModal').remove();
   showToast(`นำเข้า ${count} รายการสำเร็จ`, 'success');
+}
+
+// ===== อัปเดตเลขบัตร ปชช. จาก CSV (จับคู่ด้วยรหัสนักเรียน) =====
+function showUpdateIdCardCSV() {
+  if (!requireEdit()) return;
+  const modal = document.createElement('div');
+  modal.id = 'idCardCsvModal';
+  modal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+  modal.innerHTML = `
+    <div class="ios-card p-6 w-full max-w-md fade-in max-h-screen overflow-auto">
+      <h3 class="font-semibold text-lg mb-2">อัปเดตเลขบัตร ปชช.</h3>
+      <p class="text-xs text-ios-gray mb-3">จับคู่ด้วย <b>รหัสนักเรียน</b> แล้วเติมเฉพาะเลขบัตร ข้อมูลอื่นและประวัติฝาก-ถอนไม่หาย</p>
+      <div class="bg-ios-lightgray p-3 rounded-lg mb-3">
+        <p class="text-xs font-medium text-ios-gray mb-2">📋 รูปแบบ: รหัสนักเรียน,เลขบัตร</p>
+        <code class="text-xs text-gray-700 block whitespace-pre-wrap">STD001,1100100100001
+STD002,1100100100002
+STD003,1100100100003</code>
+      </div>
+      <div class="mb-3">
+        <label class="text-xs font-medium text-ios-gray">เลือกไฟล์ CSV</label>
+        <input type="file" id="idCardCsvFile" accept=".csv,text/csv" class="ios-input" onchange="loadIdCardCSVFile(event)">
+      </div>
+      <textarea id="idCardCsvInput" class="ios-input h-32 resize-none mb-3" placeholder="STD001,1100100100001"></textarea>
+      <div class="flex gap-2">
+        <button onclick="document.getElementById('idCardCsvModal').remove()" class="ios-btn flex-1 py-2 border border-ios-separator text-sm">ยกเลิก</button>
+        <button onclick="importIdCardCSV()" class="ios-btn flex-1 py-2 bg-ios-blue text-white text-sm">อัปเดต</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+function loadIdCardCSVFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let text = e.target.result || '';
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length && /รหัส/.test(lines[0])) lines.shift(); // ตัดหัวตาราง
+    document.getElementById('idCardCsvInput').value = lines.join('\n');
+    showToast(`โหลดไฟล์แล้ว ${lines.length} แถว`, 'info');
+  };
+  reader.onerror = () => showToast('อ่านไฟล์ไม่สำเร็จ', 'error');
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function importIdCardCSV() {
+  if (!requireEdit()) return;
+  const csv = document.getElementById('idCardCsvInput').value.trim();
+  if (!csv) { showToast('กรุณากรอกข้อมูล', 'error'); return; }
+
+  const btn = document.querySelector('#idCardCsvModal button:last-child');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังอัปเดต...';
+
+  const lines = csv.split('\n');
+  let updated = 0, notFound = 0, skipped = 0, noBackend = 0;
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const parts = line.split(',').map(s => s.trim());
+    if (parts.length < 2) { skipped++; continue; }
+    const [sid, idCard] = parts;
+    if (!sid || !idCard) { skipped++; continue; }
+
+    const student = sampleStudents.find(s => s.id === sid);
+    if (!student) { notFound++; continue; }
+    if (!student.__backendId) { noBackend++; continue; } // ข้อมูลตัวอย่าง อัปเดตไม่ได้
+
+    const ok = await database.ref('students/' + student.__backendId)
+      .update({ student_id_card: idCard })
+      .then(() => true).catch((e) => { console.error('update idCard fail', sid, e); return false; });
+    if (ok) updated++;
+  }
+
+  btn.disabled = false;
+  btn.textContent = original;
+  document.getElementById('idCardCsvModal').remove();
+  showToast(`อัปเดตสำเร็จ ${updated} คน • ไม่พบรหัส ${notFound} • ข้าม ${skipped}`, updated ? 'success' : 'error');
 }
 
 function downloadCSVTemplate() {
