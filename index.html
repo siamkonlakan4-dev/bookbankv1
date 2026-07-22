@@ -313,13 +313,6 @@ let customClassObjs = [];
 
 const SESSION_KEY = 'savings_app_session';
 
-const defaultUsers = {
-  admin: { password: 'sun2542', role: 'admin', name: 'ผู้ดูแลระบบ', class: 'all' },
-  teacher1: { password: '1234', role: 'teacher', name: 'ครูชนณรงค์', class: 'ป.1/1' },
-  teacher2: { password: '1234', role: 'teacher', name: 'ครูสมหญิง', class: 'ป.2/1' },
-  student1: { password: '1234', role: 'student', name: 'ด.ช.สมชาย ใจดี', class: 'ป.1/1', studentId: 'STD001' }
-};
-
 let currentPage = 'dashboard';
 let cardHeaderColor = '#2563eb';
 
@@ -517,7 +510,7 @@ authReady.then(() => {
 });
 
 function getAllUsers() {
-  const merged = { ...defaultUsers };
+  const merged = {};
   teacherUsers.forEach(u => {
     if (!u.username) return;
     merged[u.username] = {
@@ -1872,14 +1865,6 @@ function renderManage() {
           <table class="w-full text-sm">
             <thead class="bg-ios-lightgray"><tr><th class="p-2 text-left">Username</th><th class="p-2 text-left">ชื่อ</th><th class="p-2 text-left">ชั้น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
             <tbody>
-              ${Object.entries(defaultUsers).filter(([k, v]) => v.role === 'teacher').map(([k, v]) => `
-                <tr class="border-t border-ios-separator">
-                  <td class="p-2">${k} <span class="text-xs text-ios-gray">(ระบบ)</span></td>
-                  <td class="p-2">${v.name}</td>
-                  <td class="p-2">${v.class}</td>
-                  <td class="p-2 text-center text-xs text-ios-gray">บัญชีตัวอย่าง</td>
-                </tr>
-              `).join('')}
               ${teacherUsers.filter(u => (u.role || 'teacher') === 'teacher').map(u => `
                 <tr class="border-t border-ios-separator">
                   <td class="p-2">${u.username || ''}</td>
