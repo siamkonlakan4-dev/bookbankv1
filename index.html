@@ -1459,10 +1459,16 @@ function showAddStudent() {
         </div>
         <div>
           <label class="text-xs font-medium text-ios-gray">คำนำหน้า</label>
-          <select id="newStudentPrefix" class="ios-input">
-            <option>ด.ช.</option>
-            <option>ด.ญ.</option>
-          </select>
+          <input type="text" id="newStudentPrefix" class="ios-input" list="prefixList" value="ด.ช." placeholder="เลือกหรือพิมพ์เอง">
+          <datalist id="prefixList">
+            <option value="ด.ช."></option>
+            <option value="ด.ญ."></option>
+            <option value="นาย"></option>
+            <option value="น.ส."></option>
+            <option value="นางสาว"></option>
+            <option value="เด็กชาย"></option>
+            <option value="เด็กหญิง"></option>
+          </datalist>
         </div>
         <div>
           <label class="text-xs font-medium text-ios-gray">ชื่อ-สกุล</label>
@@ -1573,10 +1579,16 @@ function showEditStudent(studentId) {
         </div>
         <div>
           <label class="text-xs font-medium text-ios-gray">คำนำหน้า</label>
-          <select id="editStudentPrefix" class="ios-input">
-            <option ${student.prefix === 'ด.ช.' ? 'selected' : ''}>ด.ช.</option>
-            <option ${student.prefix === 'ด.ญ.' ? 'selected' : ''}>ด.ญ.</option>
-          </select>
+          <input type="text" id="editStudentPrefix" class="ios-input" list="editPrefixList" value="${student.prefix || ''}" placeholder="เลือกหรือพิมพ์เอง">
+          <datalist id="editPrefixList">
+            <option value="ด.ช."></option>
+            <option value="ด.ญ."></option>
+            <option value="นาย"></option>
+            <option value="น.ส."></option>
+            <option value="นางสาว"></option>
+            <option value="เด็กชาย"></option>
+            <option value="เด็กหญิง"></option>
+          </datalist>
         </div>
         <div>
           <label class="text-xs font-medium text-ios-gray">ชื่อ-สกุล</label>
