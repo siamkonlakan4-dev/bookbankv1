@@ -671,7 +671,11 @@ function renderNav() {
       { id: 'ranking', icon: 'trophy', label: 'Ranking' }
     ];
   }
-
+    // เพิ่มเมนูบัญชีของฉัน ถ้าครู/แอดมินผูกบัญชีออมไว้
+  if (currentUser.savingId && (currentUser.role === 'teacher' || currentUser.role === 'admin' || currentUser.role === 'director')) {
+    items.push({ id: 'myaccount', icon: 'piggy-bank', label: 'บัญชีของฉัน' });
+  }
+ 
   nav.innerHTML = items.map(item => `
     <div class="nav-item flex items-center gap-2 whitespace-nowrap text-sm ${currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">
       <i data-lucide="${item.icon}" style="width:16px;height:16px;"></i>
@@ -694,6 +698,7 @@ function navigateTo(page) {
     case 'ranking': renderRanking(); break;
     case 'cards': renderCards(); break;
     case 'passbook': renderPassbook(); break;
+    case 'myaccount': renderMyAccount(); break;
   }
 }
 
@@ -878,6 +883,69 @@ function renderDashboard() {
             }).join('')}
           </div>
         `}
+      </div>
+    </div>
+  `;
+  lucide.createIcons();
+}
+
+// ===== บัญชีของฉัน (สำหรับครู/แอดมินที่ผูกบัญชีออม) =====
+function renderMyAccount() {
+  const content = document.getElementById('mainContent');
+  const sid = currentUser.savingId;
+  const student = sampleStudents.find(s => s.id === sid);
+
+  if (!student) {
+    content.innerHTML = `
+      <div class="fade-in max-w-lg mx-auto">
+        <div class="ios-card p-6 text-center text-ios-gray">
+          ไม่พบบัญชีออมของคุณ (${sid || '-'})<br>โปรดให้แอดมินตรวจสอบการผูกบัญชีในหน้าจัดการผู้ใช้
+        </div>
+      </div>`;
+    return;
+  }
+
+  const myTxns = sampleTransactions
+    .filter(t => t.studentId === sid && getAcademicYear(t.date) === selectedAcademicYear)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const yearDeposit = myTxns.filter(t => t.type === 'deposit').reduce((s, t) => s + t.amount, 0);
+  const yearWithdraw = myTxns.filter(t => t.type === 'withdraw').reduce((s, t) => s + t.amount, 0);
+
+  content.innerHTML = `
+    <div class="fade-in max-w-lg mx-auto space-y-4">
+      ${academicYearSelectorHTML()}
+      <div class="ios-card p-6 text-center">
+        <div class="w-16 h-16 rounded-full bg-ios-blue/10 flex items-center justify-center mx-auto mb-3">
+          <i data-lucide="piggy-bank" style="width:32px;height:32px;color:#007AFF;"></i>
+        </div>
+        <p class="text-sm text-ios-gray">ยอดเงินคงเหลือ (ถึงปีการศึกษา ${selectedAcademicYear})</p>
+        <p class="text-3xl font-bold text-ios-blue mt-1">฿${balanceOfYear(sid).toLocaleString()}</p>
+        <p class="text-xs text-ios-gray mt-2">${student.prefix}${student.name} | ${student.class} | รหัส ${student.id}</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="ios-card p-4 text-center">
+          <p class="text-xs text-ios-gray">ฝากปีนี้</p>
+          <p class="text-xl font-bold text-ios-green">+฿${yearDeposit.toLocaleString()}</p>
+        </div>
+        <div class="ios-card p-4 text-center">
+          <p class="text-xs text-ios-gray">ถอนปีนี้</p>
+          <p class="text-xl font-bold text-ios-red">-฿${yearWithdraw.toLocaleString()}</p>
+        </div>
+      </div>
+
+      <div class="ios-card p-4">
+        <h3 class="font-semibold text-gray-800 mb-3">ประวัติรายการ (ปีการศึกษา ${selectedAcademicYear})</h3>
+        ${myTxns.length === 0 ? '<p class="text-sm text-ios-gray text-center py-4">ยังไม่มีรายการ</p>' : myTxns.map(t => `
+          <div class="flex items-center justify-between py-2 border-b border-ios-separator last:border-0">
+            <div>
+              <span class="text-sm ${t.type === 'deposit' ? 'text-ios-green' : 'text-ios-red'}">${t.type === 'deposit' ? 'ฝาก' : 'ถอน'}</span>
+              <span class="text-xs text-ios-gray ml-2">${new Date(t.date).toLocaleDateString('th-TH')}</span>
+            </div>
+            <span class="font-semibold ${t.type === 'deposit' ? 'text-ios-green' : 'text-ios-red'}">${t.type === 'deposit' ? '+' : '-'}฿${t.amount}</span>
+          </div>
+        `).join('')}
       </div>
     </div>
   `;
@@ -1980,6 +2048,14 @@ function teacherFormFields(isEdit, data) {
         <input type="text" id="teacherClass" class="ios-input" list="teacherClassList" value="${d.class || ''}" placeholder="ป.3/1">
         <datalist id="teacherClassList">${classes.map(c => `<option value="${c}">`).join('')}</datalist>
       </div>
+      <div>
+        <label class="text-xs font-medium text-ios-gray">บัญชีออมของครูคนนี้ (ไม่บังคับ)</label>
+        <input type="text" id="teacherSavingId" class="ios-input" list="savingIdList" value="${d.savingId || ''}" placeholder="เช่น T001 (รหัสบัญชีในห้องครู/บุคลากร)">
+        <datalist id="savingIdList">
+          ${sampleStudents.map(s => `<option value="${s.id}">${s.prefix}${s.name} (${s.class})</option>`).join('')}
+        </datalist>
+        <p class="text-xs text-ios-gray mt-1">ผูกไว้เพื่อให้ครูเห็นเมนู "บัญชีของฉัน" (ดูอย่างเดียว)</p>
+      </div>
     </div>
   `;
 }
@@ -2018,9 +2094,10 @@ async function saveNewTeacher() {
 
   try {
     const email = username.toLowerCase() + EMAIL_DOMAIN;
+    const savingId = (document.getElementById('teacherSavingId').value || '').trim();
     const cred = await secondaryApp.auth().createUserWithEmailAndPassword(email, password);
     const uid = cred.user.uid;
-    await database.ref('users/' + uid).set({ username, name, class: cls, role });
+    await database.ref('users/' + uid).set({ username, name, class: cls, role, savingId });
     await secondaryApp.auth().signOut();
     document.getElementById('teacherModal').remove();
     showToast('เพิ่มผู้ใช้สำเร็จ', 'success');
@@ -2169,9 +2246,10 @@ async function saveEditTeacher(backendId) {
   const name = document.getElementById('teacherName').value.trim();
   const role = document.getElementById('teacherRole').value;
   const cls = document.getElementById('teacherClass').value.trim() || (role === 'teacher' ? '' : 'all');
+  const savingId = (document.getElementById('teacherSavingId').value || '').trim();
   if (!name || !cls) { showToast('กรุณากรอกข้อมูลให้ครบถ้วน', 'error'); return; }
 
-  const result = await database.ref('users/' + backendId).update({ name, class: cls, role })
+  const result = await database.ref('users/' + backendId).update({ name, class: cls, role, savingId })
     .then(() => ({ isOk: true })).catch((e) => { console.error(e); return { isOk: false }; });
 
   if (result.isOk) {
