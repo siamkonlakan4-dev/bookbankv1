@@ -1981,19 +1981,33 @@ function renderManage() {
         <button onclick="showAddClassForm()" class="ios-btn w-full py-2 bg-ios-blue text-white text-sm">+ เพิ่มชั้นเรียนใหม่</button>
       </div>
 
-      <div class="ios-card p-4">
-        <h3 class="font-medium mb-3">ครูประจำชั้น</h3>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-ios-lightgray"><tr><th class="p-2 text-left">Username</th><th class="p-2 text-left">ชื่อ</th><th class="p-2 text-left">ชั้น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
+        <div class="overflow-x-auto"> 
+          <table class="w-full text-sm"> 
+            <thead class="bg-ios-lightgray">
+              <tr>
+                <th class="p-2 text-left">Username</th>
+                <th class="p-2 text-left">ชื่อ</th>
+                <th class="p-2 text-left">ชั้น</th>
+                <th class="p-2 text-left">บทบาท</th>
+                <th class="p-2 text-center">จัดการ</th>
+              </tr>
+            </thead>
             <tbody>
-              ${teacherUsers.filter(u => (u.role || 'teacher') === 'teacher').map(u => `
+              ${teacherUsers.map(u => `
                 <tr class="border-t border-ios-separator">
                   <td class="p-2">${u.username || ''}</td>
                   <td class="p-2">${u.name || ''}</td>
                   <td class="p-2">${u.class || ''}</td>
+                  <td class="p-2">
+                    <span class="text-xs px-2 py-0.5 rounded-full ${
+                      u.role === 'admin' ? 'bg-red-100 text-red-600' :
+                      u.role === 'director' ? 'bg-purple-100 text-purple-600' :
+                      'bg-blue-100 text-blue-600'
+                    }">${getRoleName(u.role || 'teacher')}</span>
+                  </td>
                   <td class="p-2 text-center whitespace-nowrap">
                     <button onclick="showEditTeacher('${u.__backendId}')" class="text-ios-blue text-xs hover:underline">แก้ไข</button>
+                    <button onclick="resetTeacherPassword('${u.__backendId}')" class="text-ios-orange text-xs hover:underline ml-2">ส่งรีเซ็ตรหัส</button>
                     <button onclick="deleteTeacher('${u.__backendId}')" class="text-ios-red text-xs hover:underline ml-2">ลบ</button>
                   </td>
                 </tr>
@@ -2001,12 +2015,6 @@ function renderManage() {
             </tbody>
           </table>
         </div>
-        <div class="flex flex-wrap gap-2 mt-3">
-          <button onclick="showAddTeacher()" class="ios-btn px-4 py-2 bg-ios-blue text-white text-sm">+ เพิ่มครู</button>
-          <button onclick="showImportTeacherCSV()" class="ios-btn px-4 py-2 bg-ios-orange text-white text-sm">นำเข้าครู CSV</button>
-          <button onclick="migrateTeachersToAuth()" class="ios-btn px-4 py-2 bg-ios-purple text-white text-sm">🔐 ย้ายครูเดิมเข้า Auth</button>
-        </div>
-      </div>
 
       <div class="ios-card p-4">
         <h3 class="font-medium mb-3">นักเรียน (${sampleStudents.length} คน)</h3>
