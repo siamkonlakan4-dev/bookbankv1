@@ -203,8 +203,7 @@ window.dataSdk = {
       this._students = arr;
       this._emit();
     }, (err) => {
-      console.error('อ่านข้อมูล students ไม่ได้:', err.code, err.message);
-      showToast('อ่านข้อมูลนักเรียนไม่ได้ ตรวจสอบ Firebase Rules', 'error');
+      console.warn('อ่านข้อมูล students ไม่ได้:', err.code, err.message);
     });
     database.ref('transactions').on('value', (snap) => {
       const arr = [];
