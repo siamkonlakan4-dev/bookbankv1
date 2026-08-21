@@ -2362,12 +2362,59 @@ async function confirmResetPassword(backendId, username, name, classVal, role, s
 
   try {
     const email = username.toLowerCase() + EMAIL_DOMAIN;
+    let newUid = null;
     
-    // ขั้นตอนที่ 1: สร้างบัญชีใหม่ด้วยรหัสใหม่
-    const newCred = await secondaryApp.auth().createUserWithEmailAndPassword(email, newPass);
-    const newUid = newCred.user.uid;
+    // ลองสร้างบัญชีใหม่ก่อน
+    try {
+      const newCred = await secondaryApp.auth().createUserWithEmailAndPassword(email, newPass);
+      newUid = newCred.user.uid;
+    } catch (createError) {
+      if (createError.code === 'auth/email-already-in-use') {
+        // ถ้า email ซ้ำ = มีบัญชีอยู่แล้ว → ต้องลบก่อน
+        console.log('Email already exists, attempting to delete old account...');
+        
+        // วิธีที่ 1: ลองล็อกอินด้วยรหัสเดิมเพื่อลบ (ถ้ารู้รหัสเดิม)
+        // แต่เราไม่รู้รหัสเดิม ดังนั้นต้องใช้วิธีอื่น
+        
+        // วิธีที่ 2: อัปเดต password ผ่าน Database (workaround)
+        showToast('พบบัญชีเดิม กำลังอัปเดตรหัสผ่าน...', 'info');
+        
+        // บันทึกรหัสใหม่ลง Database ให้ผู้ใช้ล็อกอินด้วยรหัสนี้
+        await database.ref('users/' + backendId).update({
+          tempPassword: newPass,
+          passwordResetDate: new Date().toISOString()
+        });
+        
+        if (modal) modal.remove();
+        
+        const infoModal = document.createElement('div');
+        infoModal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
+        infoModal.innerHTML = `
+          <div class="ios-card p-6 w-full max-w-md fade-in">
+            <h3 class="font-semibold text-lg mb-3 text-ios-orange">⚠️ อัปเดตรหัสผ่าน</h3>
+            <div class="bg-yellow-50 p-4 rounded-lg mb-4">
+              <p class="text-sm mb-2"><span class="font-semibold">ผู้ใช้:</span> ${username}</p>
+              <p class="text-sm mb-2"><span class="font-semibold">ชื่อ:</span> ${name}</p>
+              <p class="text-sm mb-3"><span class="font-semibold">รหัสใหม่:</span> <span class="font-mono text-lg text-ios-blue">${newPass}</span></p>
+              <p class="text-xs text-orange-700">
+                ⚠️ เนื่องจากบัญชีนี้มีอยู่แล้ว ระบบจึงบันทึกรหัสชั่วคราวไว้<br>
+                <b>แนะนำ:</b> ให้ครูท่านนี้ลบบัญชีเก่าแล้วสร้างใหม่ หรือ<br>
+                ติดต่อแอดมินเพื่อลบบัญชีเก่าผ่าน Firebase Console
+              </p>
+            </div>
+            <button onclick="this.closest('div.fixed').remove()" class="ios-btn w-full py-2 bg-ios-orange text-white">รับทราบ</button>
+          </div>
+        `;
+        document.body.appendChild(infoModal);
+        
+        showToast('บันทึกรหัสชั่วคราวแล้ว แจ้งครูล็อกอินด้วยรหัสนี้', 'info');
+        return;
+      } else {
+        throw createError;
+      }
+    }
     
-    // ขั้นตอนที่ 2: บันทึกข้อมูลโปรไฟล์
+    // ถ้าสร้างสำเร็จ → บันทึกข้อมูลโปรไฟล์
     await database.ref('users/' + newUid).set({
       username: username,
       name: name,
@@ -2376,26 +2423,21 @@ async function confirmResetPassword(backendId, username, name, classVal, role, s
       savingId: savingId || ''
     });
     
-    // ขั้นตอนที่ 3: ลบบัญชีเก่า (ถ้า UID ไม่ซ้ำกัน)
+    // ลบข้อมูลเก่า (ถ้า UID ไม่ซ้ำ)
     if (backendId !== newUid) {
       try {
-        // ลบข้อมูลโปรไฟล์เก่า
         await database.ref('users/' + backendId).remove();
-        
-        // พยายามลบ Auth เก่า (อาจทำไม่ได้เพราะไม่มีสิทธิ์)
-        // Firebase จะลบ Auth เก่าอัตโนมัติเมื่อสร้าง email ซ้ำ
       } catch (e) {
-        console.warn('ลบข้อมูลเก่าไม่สำเร็จ (ไม่สำคัญ):', e.code);
+        console.warn('ลบข้อมูลเก่าไม่สำเร็จ:', e.code);
       }
     }
     
-    // ออกจากระบบ secondary
     await secondaryApp.auth().signOut();
     
     if (modal) modal.remove();
-    showToast(`✅ รีเซ็ตรหัสผ่านสำเร็จ!\nชื่อ: ${name}\nรหัสใหม่: ${newPass}`, 'success');
+    showToast(`✅ รีเซ็ตรหัสผ่านสำเร็จ!`, 'success');
     
-    // แสดง popup รหัสใหม่ให้แอดมินจดไว้
+    // แสดง popup รหัสใหม่
     setTimeout(() => {
       const confirmModal = document.createElement('div');
       confirmModal.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4';
@@ -2418,36 +2460,7 @@ async function confirmResetPassword(backendId, username, name, classVal, role, s
     console.error('reset password error', e.code, e.message);
     let msg = 'รีเซ็ตรหัสผ่านไม่สำเร็จ';
     
-    if (e.code === 'auth/email-already-in-use') {
-      // ถ้า email ซ้ำ แสดงว่ามีการสร้างไว้แล้ว - ลองอัปเดตข้อมูล
-      msg = 'อีเมลนี้ถูกใช้ไปแล้ว กำลังลองอัปเดตข้อมูล...';
-      showToast(msg, 'info');
-      
-      try {
-        // ลองล็อกอินด้วยรหัสใหม่เพื่อหา UID
-        const testCred = await secondaryApp.auth().signInWithEmailAndPassword(
-          username.toLowerCase() + EMAIL_DOMAIN, 
-          newPass
-        );
-        const uid = testCred.user.uid;
-        
-        // อัปเดตข้อมูลโปรไฟล์
-        await database.ref('users/' + uid).update({
-          username: username,
-          name: name,
-          class: classVal,
-          role: role,
-          savingId: savingId || ''
-        });
-        
-        await secondaryApp.auth().signOut();
-        
-        if (modal) modal.remove();
-        showToast('✅ อัปเดตข้อมูลสำเร็จ! รหัสผ่านคือ: ' + newPass, 'success');
-      } catch (e2) {
-        showToast('ไม่สามารถรีเซ็ตได้ ลองลบผู้ใช้แล้วสร้างใหม่', 'error');
-      }
-    } else if (e.code === 'auth/weak-password') {
+    if (e.code === 'auth/weak-password') {
       msg = 'รหัสผ่านไม่ปลอดภัยพอ (ต้องอย่างน้อย 6 ตัว)';
     } else if (e.code === 'auth/invalid-email') {
       msg = 'รูปแบบอีเมลไม่ถูกต้อง';
